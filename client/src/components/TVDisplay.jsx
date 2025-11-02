@@ -64,7 +64,6 @@ function TVDisplay({ gameId: initialGameId }) {
         .then(data => setPacks(data))
         .catch(err => console.error('Failed to fetch packs:', err))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId])
 
   const handleStartRound = () => {
