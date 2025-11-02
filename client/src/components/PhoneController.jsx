@@ -261,10 +261,14 @@ function PhoneController({ gameId: initialGameId }) {
             <span className="name-large">{navigator?.name}</span>
           </div>
           {isNavigator && (
-            <p className="navigator-note">You'll place the slider after seeing the hints!</p>
+            <div className="navigator-badge">
+              <div className="navigator-badge-large">🧭</div>
+              <h2>That's YOU!</h2>
+              <p>You don't submit hints - you'll place the slider!</p>
+            </div>
           )}
           {!isNavigator && (
-            <p className="cluer-note">You'll submit a hint to help the Navigator!</p>
+            <p className="cluer-note">📝 You're a Cluer - you'll submit a hint to help the Navigator!</p>
           )}
         </div>
       </div>
@@ -279,8 +283,14 @@ function PhoneController({ gameId: initialGameId }) {
     if (isNavigator) {
       return (
         <div className="phone-hint-navigator">
-          <h1 className="phase-title">🧭 You're the Navigator!</h1>
+          <h1 className="phase-title">🧭 Navigator Role</h1>
           <Timer endTime={ws.gameState.timerEndTime} />
+
+          <div className="navigator-badge">
+            <div className="navigator-badge-large">🧭</div>
+            <h2>You're the Navigator!</h2>
+            <p>DO NOT submit a hint this round</p>
+          </div>
 
           {spectrum && (
             <div className="spectrum-info">
@@ -293,8 +303,8 @@ function PhoneController({ gameId: initialGameId }) {
           )}
 
           <div className="waiting-message">
-            <p>Wait for the Cluers to submit their hints...</p>
-            <p className="instruction">You'll see the winning hints and place a slider from 0-100!</p>
+            <p>🕐 Wait for the Cluers to submit their hints...</p>
+            <p className="instruction">Next, you'll see the winning hints and place a slider from 0-100!</p>
           </div>
         </div>
       )

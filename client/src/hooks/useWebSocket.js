@@ -2,6 +2,9 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
 const RECONNECT_TIMEOUT_MS = 5000
+const RECONNECT_DELAY_MS = 3000
+const MAX_RECONNECT_DELAY_MS = 30000
+const MAX_RECONNECT_ATTEMPTS = 10
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
@@ -13,6 +16,10 @@ export function useWebSocket() {
   const reconnectToken = useRef(localStorage.getItem('reconnectToken'))
   const reconnectAttempted = useRef(false)
   const connectionTimeout = useRef(null)
+  const reconnectAttempts = useRef(0)
+  const reconnectTimer = useRef(null)
+  const visibilityChangeHandler = useRef(null)
+  const isConnected = useRef(false)
 
   const clearReconnectToken = useCallback(() => {
     reconnectToken.current = null
@@ -33,6 +40,8 @@ export function useWebSocket() {
     ws.current.onopen = () => {
       console.log('WebSocket connected')
       setConnected(true)
+      isConnected.current = true
+      reconnectAttempts.current = 0 // Reset reconnect attempts on successful connection
       
       // Try to reconnect if we have a token and haven't attempted yet
       if (reconnectToken.current && !reconnectAttempted.current) {
@@ -141,14 +150,23 @@ export function useWebSocket() {
     ws.current.onclose = () => {
       console.log('WebSocket disconnected')
       setConnected(false)
+      isConnected.current = false
       
       // Reset reconnect attempt flag so it can be tried again on reconnection
       reconnectAttempted.current = false
       
-      // Reconnect after 3 seconds
-      setTimeout(() => {
-        connect()
-      }, 3000)
+      // Implement exponential backoff for reconnection
+      if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(RECONNECT_DELAY_MS * (1.5 ** reconnectAttempts.current), MAX_RECONNECT_DELAY_MS)
+        console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1}/${MAX_RECONNECT_ATTEMPTS})`)
+        
+        reconnectTimer.current = setTimeout(() => {
+          reconnectAttempts.current++
+          connect()
+        }, delay)
+      } else {
+        console.log('Max reconnection attempts reached')
+      }
     }
 
     ws.current.onerror = (error) => {
@@ -160,11 +178,34 @@ export function useWebSocket() {
   useEffect(() => {
     connect()
 
+    // Handle page visibility changes (e.g., app switching on mobile)
+    visibilityChangeHandler.current = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible - checking connection')
+        // If we're not connected and have a reconnect token, try to reconnect
+        if (!isConnected.current && reconnectToken.current) {
+          console.log('Attempting to reconnect after returning to app')
+          reconnectAttempted.current = false
+          reconnectAttempts.current = 0
+          connect()
+        }
+      }
+    }
+    
+    document.addEventListener('visibilitychange', visibilityChangeHandler.current)
+
     return () => {
       // Clean up connection timeout
       if (connectionTimeout.current) {
         clearTimeout(connectionTimeout.current)
         connectionTimeout.current = null
+      }
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current)
+        reconnectTimer.current = null
+      }
+      if (visibilityChangeHandler.current) {
+        document.removeEventListener('visibilitychange', visibilityChangeHandler.current)
       }
       if (ws.current) {
         ws.current.close()
