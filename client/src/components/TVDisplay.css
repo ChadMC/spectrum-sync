@@ -927,3 +927,45 @@
   opacity: 0.8;
   margin-left: auto;
 }
+
+/* Reveal phase gauges */
+.reveal-gauges {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2rem;
+  margin: 2rem 0;
+  flex-wrap: wrap;
+}
+
+.gauge-section {
+  flex: 1;
+  min-width: 300px;
+  max-width: 500px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.gauge-title {
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0 0 1rem 0;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 1024px) {
+  .reveal-gauges {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .gauge-section {
+    width: 100%;
+    max-width: 600px;
+  }
+}
