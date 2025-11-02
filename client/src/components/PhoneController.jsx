@@ -35,10 +35,17 @@ function PhoneController({ gameId: initialGameId }) {
   // Effect to try reconnecting with saved token when component mounts or gameId changes
   useEffect(() => {
     if (gameId && ws.connected) {
-      ws.loadReconnectToken(gameId)
+      const reconnected = ws.loadReconnectToken(gameId)
+      
+      // If we didn't reconnect with a token (e.g., page refresh while already in game),
+      // we should still request game state if we're already joined
+      if (!reconnected && joined) {
+        console.log('Phone: Requesting game state for', gameId)
+        ws.getGameState(gameId)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameId, ws.connected])
+  }, [gameId, ws.connected, joined])
 
   useEffect(() => {
     // Fetch available avatars

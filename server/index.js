@@ -390,8 +390,27 @@ class Game {
     return null;
   }
 
-  startTimer(seconds) {
+  startTimer(seconds, onComplete = null) {
     this.timerEndTime = Date.now() + (seconds * 1000);
+    
+    // Clear any existing timer
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+    
+    // Set new timer with callback
+    if (onComplete) {
+      this.timer = setTimeout(() => {
+        onComplete();
+      }, seconds * 1000);
+    }
+  }
+  
+  clearTimer() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
   }
 
   getTimeBonus() {
@@ -477,6 +496,134 @@ class Game {
     }
 
     return state;
+  }
+}
+
+// Phase transition helpers
+function transitionToHintPhase(game) {
+  if (game.state !== 'ROUND_START') return;
+  
+  game.state = 'HINT';
+  const hintTime = PHASE_SECONDS.HINT + game.getTimeBonus();
+  game.startTimer(hintTime, () => {
+    // Auto-transition to VOTE phase
+    transitionToVotePhase(game);
+  });
+  
+  // Send individual states to show target to Cluers
+  sendPlayerSpecificGameStates(game);
+  
+  // Also send HINT_PHASE_START message
+  for (const [playerId] of game.players) {
+    sendToPlayer(playerId, {
+      type: 'HINT_PHASE_START',
+      state: game.getGameState(playerId)
+    });
+  }
+}
+
+function transitionToVotePhase(game) {
+  if (game.state !== 'HINT') return;
+  
+  // Process duplicates
+  const canceledPlayers = game.processDuplicates();
+  
+  if (canceledPlayers.length > 0) {
+    // Notify canceled players
+    for (const playerId of canceledPlayers) {
+      sendToPlayer(playerId, {
+        type: 'HINT_CANCELED',
+        reason: 'Duplicate detected - you may resubmit once'
+      });
+    }
+  }
+  
+  // Transition to voting
+  game.state = 'VOTE';
+  game.startTimer(PHASE_SECONDS.VOTE, () => {
+    // Auto-transition to PLACE phase
+    transitionToPlacePhase(game);
+  });
+  
+  broadcastToGame(game.id, {
+    type: 'VOTE_START',
+    hints: game.getActiveHints(),
+    maxVotes: 2
+  });
+}
+
+function transitionToPlacePhase(game) {
+  if (game.state !== 'VOTE') return;
+  
+  game.state = 'PLACE';
+  const placeTime = PHASE_SECONDS.PLACE + game.getTimeBonus();
+  game.startTimer(placeTime, () => {
+    // Auto-transition to REVEAL phase (with default placement if not set)
+    transitionToRevealPhase(game);
+  });
+  
+  const finalClueIds = game.calculateFinalClues();
+  const finalClues = finalClueIds.map(id => {
+    const hint = game.hints.get(id);
+    return { id, text: hint.text };
+  });
+  
+  broadcastToGame(game.id, {
+    type: 'PLACE_START',
+    finalClues,
+    phase: 'PLACE'
+  });
+}
+
+function transitionToRevealPhase(game) {
+  if (game.state !== 'PLACE') return;
+  
+  // If navigator didn't place, use middle (50) as default
+  if (game.placement === null) {
+    game.placement = 50;
+  }
+  
+  game.state = 'REVEAL';
+  game.startTimer(PHASE_SECONDS.REVEAL, () => {
+    // Auto-transition to next round or game over
+    transitionAfterReveal(game);
+  });
+  
+  const scores = game.calculateScores();
+  
+  broadcastToGame(game.id, {
+    type: 'REVEAL',
+    target: game.target,
+    placement: game.placement,
+    distance: scores.distance,
+    pointsPerPlayer: scores.pointsPerPlayer,
+    teamResult: scores.teamResult,
+    finalClueAuthors: scores.finalClueIds.map(id => {
+      const player = game.players.get(id);
+      return { hintId: id, playerId: id, name: player?.name, avatar: player?.avatar };
+    })
+  });
+}
+
+function transitionAfterReveal(game) {
+  if (game.state !== 'REVEAL') return;
+  
+  // Check win condition
+  if (game.checkWinCondition()) {
+    broadcastToGame(game.id, {
+      type: 'GAME_OVER',
+      leaderboard: game.getLeaderboard()
+    });
+  } else {
+    // Wait buffer time then prepare for next round
+    game.startTimer(PHASE_SECONDS.BUFFER, () => {
+      // Return to lobby-like state, ready for next round
+      game.state = 'LOBBY';
+      broadcastToGame(game.id, {
+        type: 'ROUND_COMPLETE',
+        state: game.getGameState()
+      });
+    });
   }
 }
 
@@ -601,7 +748,10 @@ function handleMessage(clientId, ws, message) {
       
       if (startGame.startRound()) {
         startGame.state = 'ROUND_START';
-        startGame.startTimer(PHASE_SECONDS.SPECTRUM_REVEAL);
+        startGame.startTimer(PHASE_SECONDS.SPECTRUM_REVEAL, () => {
+          // Auto-transition to HINT phase
+          transitionToHintPhase(startGame);
+        });
         
         broadcastToGame(startGame.id, {
           type: 'ROUND_START',
@@ -614,23 +764,6 @@ function handleMessage(clientId, ws, message) {
           navigatorId: startGame.navigatorId,
           phase: 'ROUND_START'
         });
-        
-        // Auto-transition to HINT phase after delay
-        setTimeout(() => {
-          if (startGame.state === 'ROUND_START') {
-            startGame.state = 'HINT';
-            const hintTime = PHASE_SECONDS.HINT + startGame.getTimeBonus();
-            startGame.startTimer(hintTime);
-            
-            // Send individual states to show target to Cluers
-            for (const [playerId] of startGame.players) {
-              sendToPlayer(playerId, {
-                type: 'HINT_PHASE_START',
-                state: startGame.getGameState(playerId)
-              });
-            }
-          }
-        }, PHASE_SECONDS.SPECTRUM_REVEAL * 1000);
       }
       break;
 
@@ -660,28 +793,9 @@ function handleMessage(clientId, ws, message) {
       if (!completeHintGame || completeHintGame.hostId !== clientId) return;
       if (completeHintGame.state !== 'HINT') return;
       
-      // Process duplicates
-      const canceledPlayers = completeHintGame.processDuplicates();
-      
-      if (canceledPlayers.length > 0) {
-        // Notify canceled players
-        for (const playerId of canceledPlayers) {
-          sendToPlayer(playerId, {
-            type: 'HINT_CANCELED',
-            reason: 'Duplicate detected - you may resubmit once'
-          });
-        }
-      }
-      
-      // Transition to voting
-      completeHintGame.state = 'VOTE';
-      completeHintGame.startTimer(PHASE_SECONDS.VOTE);
-      
-      broadcastToGame(completeHintGame.id, {
-        type: 'VOTE_START',
-        hints: completeHintGame.getActiveHints(),
-        maxVotes: 2
-      });
+      // Clear the auto-timer and manually transition
+      completeHintGame.clearTimer();
+      transitionToVotePhase(completeHintGame);
       break;
 
     case 'VOTE_CAST':
@@ -710,21 +824,9 @@ function handleMessage(clientId, ws, message) {
       if (!completeVoteGame || completeVoteGame.hostId !== clientId) return;
       if (completeVoteGame.state !== 'VOTE') return;
       
-      completeVoteGame.state = 'PLACE';
-      const placeTime = PHASE_SECONDS.PLACE + completeVoteGame.getTimeBonus();
-      completeVoteGame.startTimer(placeTime);
-      
-      const finalClueIds = completeVoteGame.calculateFinalClues();
-      const finalClues = finalClueIds.map(id => {
-        const hint = completeVoteGame.hints.get(id);
-        return { id, text: hint.text };
-      });
-      
-      broadcastToGame(completeVoteGame.id, {
-        type: 'PLACE_START',
-        finalClues,
-        phase: 'PLACE'
-      });
+      // Clear the auto-timer and manually transition
+      completeVoteGame.clearTimer();
+      transitionToPlacePhase(completeVoteGame);
       break;
 
     case 'PLACEMENT_SET':
@@ -744,40 +846,12 @@ function handleMessage(clientId, ws, message) {
       const lockGame = games.get(data.gameId);
       if (!lockGame) return;
       if (lockGame.navigatorId !== clientId) return;
+      if (lockGame.state !== 'PLACE') return;
       if (lockGame.placement === null) return;
       
-      lockGame.state = 'REVEAL';
-      lockGame.startTimer(PHASE_SECONDS.REVEAL);
-      
-      const scores = lockGame.calculateScores();
-      
-      broadcastToGame(lockGame.id, {
-        type: 'REVEAL',
-        target: lockGame.target,
-        placement: lockGame.placement,
-        distance: scores.distance,
-        pointsPerPlayer: scores.pointsPerPlayer,
-        teamResult: scores.teamResult,
-        finalClueAuthors: scores.finalClueIds.map(id => {
-          const player = lockGame.players.get(id);
-          return { hintId: id, playerId: id, name: player?.name, avatar: player?.avatar };
-        })
-      });
-      
-      // Check win condition after delay
-      setTimeout(() => {
-        if (lockGame.checkWinCondition()) {
-          broadcastToGame(lockGame.id, {
-            type: 'GAME_OVER',
-            leaderboard: lockGame.getLeaderboard()
-          });
-        } else {
-          broadcastToGame(lockGame.id, {
-            type: 'ROUND_COMPLETE',
-            state: lockGame.getGameState()
-          });
-        }
-      }, (PHASE_SECONDS.REVEAL + PHASE_SECONDS.BUFFER) * 1000);
+      // Clear the auto-timer and manually transition
+      lockGame.clearTimer();
+      transitionToRevealPhase(lockGame);
       break;
 
     case 'TOGGLE_KIDS_MODE':
@@ -804,8 +878,15 @@ function handleMessage(clientId, ws, message) {
 
     case 'GET_GAME_STATE':
       const stateGame = games.get(data.gameId);
-      if (!stateGame) return;
+      if (!stateGame) {
+        ws.send(JSON.stringify({
+          type: 'ERROR',
+          message: 'Game not found'
+        }));
+        return;
+      }
       
+      // Send player-specific state (includes target for cluers, etc.)
       sendToPlayer(clientId, {
         type: 'ROOM_STATE',
         state: stateGame.getGameState(clientId)
@@ -816,8 +897,33 @@ function handleMessage(clientId, ws, message) {
       const timeGame = games.get(data.gameId);
       if (!timeGame || timeGame.hostId !== clientId) return;
       
-      if (timeGame.timerEndTime) {
-        timeGame.timerEndTime += 10000; // Add 10 seconds
+      if (timeGame.timerEndTime && timeGame.timer) {
+        // Add 10 seconds to the timer
+        timeGame.timerEndTime += 10000;
+        
+        // Clear and restart the timer with the new duration
+        const remainingTime = Math.max(0, Math.ceil((timeGame.timerEndTime - Date.now()) / 1000));
+        
+        // Store the original callback before clearing
+        const currentState = timeGame.state;
+        timeGame.clearTimer();
+        
+        // Restart timer with appropriate callback based on current state
+        let callback = null;
+        if (currentState === 'HINT') {
+          callback = () => transitionToVotePhase(timeGame);
+        } else if (currentState === 'VOTE') {
+          callback = () => transitionToPlacePhase(timeGame);
+        } else if (currentState === 'PLACE') {
+          callback = () => transitionToRevealPhase(timeGame);
+        } else if (currentState === 'REVEAL') {
+          callback = () => transitionAfterReveal(timeGame);
+        }
+        
+        if (callback) {
+          timeGame.timer = setTimeout(callback, remainingTime * 1000);
+        }
+        
         broadcastToGame(timeGame.id, {
           type: 'TIME_ADDED',
           newEndTime: timeGame.timerEndTime
