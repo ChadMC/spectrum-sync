@@ -212,65 +212,6 @@
   font-size: 1.5em;
 }
 
-/* Spectrum Display */
-.spectrum-display {
-  margin-bottom: 40px;
-}
-
-.spectrum-bar {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 30px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 15px;
-}
-
-.spectrum-left, .spectrum-right {
-  font-size: 1.8em;
-  font-weight: bold;
-  min-width: 150px;
-  text-align: center;
-}
-
-.spectrum-line {
-  flex: 1;
-  position: relative;
-  height: 60px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 30px;
-}
-
-.spectrum-ticks {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 100%;
-  padding: 0 20px;
-}
-
-.spectrum-ticks .tick {
-  font-size: 1em;
-  font-weight: 600;
-  padding: 5px 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 5px;
-}
-
-.target-marker, .placement-marker {
-  position: absolute;
-  top: -40px;
-  transform: translateX(-50%);
-}
-
-.marker-label {
-  background: rgba(0, 0, 0, 0.8);
-  padding: 8px 15px;
-  border-radius: 8px;
-  font-size: 1.2em;
-  white-space: nowrap;
-}
-
 /* Playing */
 .tv-playing {
   max-width: 1200px;
