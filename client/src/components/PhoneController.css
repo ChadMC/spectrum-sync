@@ -1,0 +1,628 @@
+.phone-controller {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+}
+
+.phone-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Join Screen */
+.phone-join {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.phone-title {
+  text-align: center;
+  font-size: 2.5em;
+  margin: 20px 0 40px 0;
+}
+
+.join-form {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 30px;
+  border-radius: 20px;
+}
+
+.form-group {
+  margin-bottom: 25px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1em;
+  box-sizing: border-box;
+}
+
+.form-group input[type="text"] {
+  text-transform: uppercase;
+}
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.avatar-option {
+  padding: 15px;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 2em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.avatar-option:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.avatar-option.selected {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.3);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.6);
+  transform: scale(1.15);
+}
+
+.btn {
+  padding: 15px 30px;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-primary {
+  background: white;
+  color: #667eea;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-large {
+  padding: 20px 40px;
+  font-size: 1.3em;
+}
+
+/* Lobby */
+.phone-lobby {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.game-info {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 30px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 1.2em;
+}
+
+.info-item .label {
+  font-weight: 600;
+}
+
+.info-item .value {
+  font-weight: bold;
+}
+
+.players-list {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.player-item .avatar {
+  font-size: 2em;
+}
+
+.player-item .name {
+  flex: 1;
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.player-item .badge {
+  font-size: 1.5em;
+}
+
+.waiting-message {
+  text-align: center;
+  font-size: 1.2em;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  animation: pulse 2s infinite;
+}
+
+/* Playing */
+.phone-playing {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.clue-display {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.clue-display h2 {
+  margin: 0 0 15px 0;
+  font-size: 1.5em;
+}
+
+.clue-box {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.clue {
+  margin: 0;
+  font-size: 1.3em;
+  font-weight: 600;
+}
+
+.prompt-section {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 25px;
+  border-radius: 15px;
+  margin-bottom: 20px;
+}
+
+.prompt-question {
+  margin: 0 0 20px 0;
+  font-size: 1.5em;
+  text-align: center;
+}
+
+.text-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.text-input-section textarea {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1em;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.emoji-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+.btn-emoji {
+  padding: 30px;
+  border: none;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 3em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-emoji:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.btn-emoji:active {
+  transform: scale(0.95);
+}
+
+.choice-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.btn-choice {
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 10px;
+  font-size: 1.2em;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.btn-choice:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateX(5px);
+}
+
+.btn-choice:active {
+  transform: scale(0.98);
+}
+
+.round-info {
+  text-align: center;
+  font-size: 1.1em;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.submission-confirmation {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 40px 25px;
+  border-radius: 15px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.confirmation-icon {
+  font-size: 5em;
+  color: #4ade80;
+  margin-bottom: 20px;
+  animation: scaleIn 0.5s ease;
+}
+
+.submission-confirmation h2 {
+  margin: 0 0 15px 0;
+  font-size: 1.8em;
+}
+
+.submission-confirmation p {
+  margin: 0;
+  font-size: 1.2em;
+  opacity: 0.9;
+  animation: pulse 2s infinite;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Voting */
+.phone-voting {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.voting-title {
+  text-align: center;
+  font-size: 2.5em;
+  margin: 20px 0;
+}
+
+.voting-instruction {
+  text-align: center;
+  font-size: 1.3em;
+  margin-bottom: 30px;
+}
+
+.vote-options {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.vote-button {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 15px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vote-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateX(10px);
+}
+
+.vote-button:active {
+  transform: scale(0.98);
+}
+
+.vote-button .avatar {
+  font-size: 3em;
+}
+
+.vote-button .name {
+  flex: 1;
+  font-size: 1.5em;
+  font-weight: 600;
+  text-align: left;
+}
+
+.answers-review {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 25px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.prompt-section {
+  margin-bottom: 25px;
+}
+
+.prompt-section:last-child {
+  margin-bottom: 0;
+}
+
+.prompt-section .question {
+  font-size: 1.2em;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.answers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.answer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 0.95em;
+}
+
+.answer-item .avatar {
+  font-size: 1.5em;
+}
+
+.answer-item .name {
+  min-width: 80px;
+  font-weight: 600;
+}
+
+.answer-item .answer {
+  flex: 1;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  font-style: italic;
+}
+
+.vote-section {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 20px;
+  border-radius: 15px;
+}
+
+.vote-prompt {
+  text-align: center;
+  font-size: 1.5em;
+  margin: 0 0 15px 0;
+}
+
+/* Reveal */
+.phone-reveal {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.reveal-title {
+  text-align: center;
+  font-size: 2.5em;
+  margin: 20px 0;
+}
+
+.odd-reveal {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 30px;
+  border-radius: 15px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.reveal-label {
+  font-size: 1.2em;
+  margin-bottom: 15px;
+}
+
+.odd-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-large {
+  font-size: 5em;
+}
+
+.name-large {
+  font-size: 2em;
+  font-weight: 600;
+}
+
+.my-score {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 25px;
+  border-radius: 15px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.my-score h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.3em;
+}
+
+.my-score .score {
+  font-size: 3em;
+  font-weight: bold;
+  margin: 0;
+}
+
+.mini-scoreboard {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 15px;
+}
+
+.score-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.score-item .rank {
+  font-weight: bold;
+  font-size: 1.2em;
+  min-width: 40px;
+}
+
+.score-item .avatar {
+  font-size: 2em;
+}
+
+.score-item .name {
+  flex: 1;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.score-item .score {
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
+/* Game Over */
+.phone-game-over {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.game-over-title {
+  text-align: center;
+  font-size: 2.5em;
+  margin: 20px 0;
+}
+
+.winner-section {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 30px;
+  border-radius: 15px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.winner-label {
+  font-size: 1.2em;
+  margin-bottom: 15px;
+}
+
+.winner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.score-large {
+  font-size: 2em;
+  font-weight: bold;
+}
+
+.my-final-score {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 25px;
+  border-radius: 15px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.my-final-score h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.3em;
+}
+
+.my-final-score .score-large {
+  margin: 0;
+}

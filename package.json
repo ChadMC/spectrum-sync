@@ -1,0 +1,23 @@
+{
+  "name": "odd-ball-out",
+  "version": "1.0.0",
+  "description": "Multiplayer party game to locate the odd one out!",
+  "scripts": {
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm start",
+    "client": "cd client && npm run dev",
+    "build": "cd client && npm run build"
+  },
+  "keywords": [
+    "game",
+    "multiplayer",
+    "party",
+    "websocket"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
