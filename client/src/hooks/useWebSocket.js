@@ -322,13 +322,35 @@ export function useWebSocket() {
   }, [])
 
   const loadReconnectToken = useCallback((gameId) => {
-    if (!gameId) return
+    if (!gameId) return false
     const token = getReconnectToken(gameId)
     if (token) {
       reconnectToken.current = token
       reconnectGameId.current = gameId
+      
+      // If we're already connected and haven't attempted reconnect yet, try now
+      if (ws.current?.readyState === WebSocket.OPEN && !reconnectAttempted.current) {
+        reconnectAttempted.current = true
+        const message = JSON.stringify({ 
+          type: 'RECONNECT', 
+          data: { token } 
+        })
+        ws.current.send(message)
+        
+        // Set a timeout for reconnect attempt
+        if (connectionTimeout.current) {
+          clearTimeout(connectionTimeout.current)
+        }
+        connectionTimeout.current = setTimeout(() => {
+          console.log('Reconnect timeout - clearing stale token')
+          clearReconnectToken(gameId)
+        }, RECONNECT_TIMEOUT_MS)
+        
+        return true
+      }
     }
-  }, [getReconnectToken])
+    return false
+  }, [getReconnectToken, clearReconnectToken])
 
   const clearMessages = useCallback(() => {
     setMessages([])
