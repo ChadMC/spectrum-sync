@@ -129,7 +129,7 @@ function PhoneController({ gameId: initialGameId }) {
   if (!joined) {
     return (
       <div className="phone-join">
-        <h1 className="phone-title">🌈 Join Game</h1>
+        <h1 className="phone-title">🧭 Join Game</h1>
         
         <form onSubmit={handleJoin} className="join-form">
           <div className="form-group">
