@@ -502,20 +502,7 @@ wss.on('connection', (ws) => {
       const player = game.players.get(clientId);
       if (player) {
         player.connected = false;
-        // Send player-specific game states to ensure cluers get target value
-        for (const [pId] of game.players) {
-          sendToPlayer(pId, {
-            type: 'ROOM_STATE',
-            state: game.getGameState(pId)
-          });
-        }
-        // Also send to host if host is not in the players list
-        if (!game.players.has(game.hostId)) {
-          sendToPlayer(game.hostId, {
-            type: 'ROOM_STATE',
-            state: game.getGameState()
-          });
-        }
+        sendPlayerSpecificGameStates(game);
       }
     }
   });
@@ -566,20 +553,7 @@ function handleMessage(clientId, ws, message) {
         reconnectToken: token
       }));
 
-      // Send player-specific game states to ensure cluers get target value
-      for (const [pId] of joinGame.players) {
-        sendToPlayer(pId, {
-          type: 'ROOM_STATE',
-          state: joinGame.getGameState(pId)
-        });
-      }
-      // Also send to host if host is not in the players list
-      if (!joinGame.players.has(joinGame.hostId)) {
-        sendToPlayer(joinGame.hostId, {
-          type: 'ROOM_STATE',
-          state: joinGame.getGameState()
-        });
-      }
+      sendPlayerSpecificGameStates(joinGame);
       break;
 
     case 'RECONNECT':
@@ -596,20 +570,7 @@ function handleMessage(clientId, ws, message) {
             playerId: playerId
           }));
 
-          // Send player-specific game states to ensure cluers get target value
-          for (const [pId] of game.players) {
-            sendToPlayer(pId, {
-              type: 'ROOM_STATE',
-              state: game.getGameState(pId)
-            });
-          }
-          // Also send to host if host is not in the players list
-          if (!game.players.has(game.hostId)) {
-            sendToPlayer(game.hostId, {
-              type: 'ROOM_STATE',
-              state: game.getGameState()
-            });
-          }
+          sendPlayerSpecificGameStates(game);
           return;
         }
       }
@@ -866,6 +827,28 @@ function handleMessage(clientId, ws, message) {
 
     default:
       console.log('Unknown message type:', type);
+  }
+}
+
+/**
+ * Sends player-specific game states to all players in a game.
+ * This ensures that cluers receive the target value while navigators don't.
+ * Also sends game state to the host if they're not in the players list.
+ */
+function sendPlayerSpecificGameStates(game) {
+  // Send player-specific game states to ensure cluers get target value
+  for (const [pId] of game.players) {
+    sendToPlayer(pId, {
+      type: 'ROOM_STATE',
+      state: game.getGameState(pId)
+    });
+  }
+  // Also send to host if host is not in the players list
+  if (!game.players.has(game.hostId)) {
+    sendToPlayer(game.hostId, {
+      type: 'ROOM_STATE',
+      state: game.getGameState()
+    });
   }
 }
 
