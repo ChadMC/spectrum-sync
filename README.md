@@ -1,4 +1,4 @@
-# 🌈 Spectrum Sync
+# 🧭 Spectrum Sync
 
 A TV-hosted, phone-controlled **cooperative spectrum guessing game** where one player (the **Navigator**) places a slider on a left↔right scale, guided by short hints from everyone else (the **Cluers**). Cluers know the **exact target** position; the Navigator does not.
 
