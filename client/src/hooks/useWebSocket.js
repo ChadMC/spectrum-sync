@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
+const RECONNECT_TIMEOUT_MS = 5000
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
@@ -36,16 +37,19 @@ export function useWebSocket() {
       // Try to reconnect if we have a token and haven't attempted yet
       if (reconnectToken.current && !reconnectAttempted.current) {
         reconnectAttempted.current = true
-        ws.current.send(JSON.stringify({ 
+        
+        // Send reconnect message
+        const message = JSON.stringify({ 
           type: 'RECONNECT', 
           data: { token: reconnectToken.current } 
-        }))
+        })
+        ws.current.send(message)
         
-        // Set a timeout for reconnect attempt - if no response in 5 seconds, clear token
+        // Set a timeout for reconnect attempt - if no response, clear token
         connectionTimeout.current = setTimeout(() => {
           console.log('Reconnect timeout - clearing stale token')
           clearReconnectToken()
-        }, 5000)
+        }, RECONNECT_TIMEOUT_MS)
       }
     }
 
