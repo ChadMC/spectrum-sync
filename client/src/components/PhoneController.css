@@ -1342,6 +1342,13 @@
   }
 }
 
+/* Disable animation for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .target-display-prominent {
+    animation: none;
+  }
+}
+
 .target-label-phone {
   font-size: 1.3em;
   font-weight: 800;
@@ -1358,7 +1365,7 @@
   line-height: 1;
   margin: 15px 0;
   text-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  letter-spacing: -3px;
+  letter-spacing: 0.02em;
 }
 
 .target-instruction {
