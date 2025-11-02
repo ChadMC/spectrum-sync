@@ -416,6 +416,11 @@ class Game {
   getTimeBonus() {
     return this.kidsMode ? KIDS_MODE_TIME_BONUS : 0;
   }
+  
+  shouldShowTarget(forPlayerId) {
+    // Show target to cluers (not navigator, not TV/host)
+    return forPlayerId && forPlayerId !== this.navigatorId;
+  }
 
   getGameState(forPlayerId = null) {
     const state = {
@@ -448,7 +453,7 @@ class Game {
       }
 
       // Show target to Cluers only (not to Navigator, not to TV/host)
-      if (forPlayerId && forPlayerId !== this.navigatorId) {
+      if (this.shouldShowTarget(forPlayerId)) {
         state.target = this.target;
       }
     }
@@ -467,7 +472,7 @@ class Game {
       state.totalVoters = this.players.size - 1; // excluding Navigator
       
       // Also include target for cluers (for context when they refresh)
-      if (forPlayerId && forPlayerId !== this.navigatorId) {
+      if (this.shouldShowTarget(forPlayerId)) {
         state.target = this.target;
       }
     }
@@ -480,7 +485,7 @@ class Game {
       });
       
       // Include target for cluers (for reference when they refresh)
-      if (forPlayerId && forPlayerId !== this.navigatorId) {
+      if (this.shouldShowTarget(forPlayerId)) {
         state.target = this.target;
       }
     }
@@ -588,7 +593,7 @@ function transitionToPlacePhase(game) {
 function transitionToRevealPhase(game) {
   if (game.state !== 'PLACE') return;
   
-  // If navigator didn't place, use middle (50) as default
+  // If navigator didn't place, use middle of scale (50 on 0-100 scale) as default
   if (game.placement === null) {
     game.placement = 50;
   }
@@ -920,14 +925,19 @@ function handleMessage(clientId, ws, message) {
         
         // Restart timer with appropriate callback based on current state
         let callback = null;
-        if (currentState === 'HINT') {
-          callback = () => transitionToVotePhase(timeGame);
-        } else if (currentState === 'VOTE') {
-          callback = () => transitionToPlacePhase(timeGame);
-        } else if (currentState === 'PLACE') {
-          callback = () => transitionToRevealPhase(timeGame);
-        } else if (currentState === 'REVEAL') {
-          callback = () => transitionAfterReveal(timeGame);
+        switch (currentState) {
+          case 'HINT':
+            callback = () => transitionToVotePhase(timeGame);
+            break;
+          case 'VOTE':
+            callback = () => transitionToPlacePhase(timeGame);
+            break;
+          case 'PLACE':
+            callback = () => transitionToRevealPhase(timeGame);
+            break;
+          case 'REVEAL':
+            callback = () => transitionAfterReveal(timeGame);
+            break;
         }
         
         if (callback) {
