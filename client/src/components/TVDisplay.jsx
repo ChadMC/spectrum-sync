@@ -73,7 +73,7 @@ function TVDisplay({ gameId: initialGameId }) {
     return (
       <div className="tv-lobby">
         <div className="lobby-header">
-          <h1 className="tv-title">🌈 Spectrum Sync</h1>
+          <h1 className="tv-title">🧭 Spectrum Sync</h1>
           <div className="game-code">
             Game Code: <span className="code">{gameId}</span>
           </div>
@@ -140,7 +140,7 @@ function TVDisplay({ gameId: initialGameId }) {
 
     return (
       <div className="tv-round-start">
-        <h1 className="phase-title">🌈 New Round!</h1>
+        <h1 className="phase-title">🧭 New Round!</h1>
         <div className="round-info">
           <h2>Round {ws.gameState.currentRound}/{ws.gameState.maxRounds}</h2>
         </div>
