@@ -157,7 +157,7 @@ export function useWebSocket() {
       
       // Implement exponential backoff for reconnection
       if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
-        const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, reconnectAttempts.current), MAX_RECONNECT_DELAY_MS)
+        const delay = Math.min(RECONNECT_DELAY_MS * (1.5 ** reconnectAttempts.current), MAX_RECONNECT_DELAY_MS)
         console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1}/${MAX_RECONNECT_ATTEMPTS})`)
         
         reconnectTimer.current = setTimeout(() => {
@@ -183,7 +183,7 @@ export function useWebSocket() {
       if (document.visibilityState === 'visible') {
         console.log('Page became visible - checking connection')
         // If we're not connected and have a reconnect token, try to reconnect
-        if (!isConnected.current && reconnectToken.current && ws.current?.readyState !== WebSocket.OPEN) {
+        if (!isConnected.current && reconnectToken.current) {
           console.log('Attempting to reconnect after returning to app')
           reconnectAttempted.current = false
           reconnectAttempts.current = 0
