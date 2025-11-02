@@ -1,0 +1,175 @@
+.spectrum-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.gauge-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gauge-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.gauge-center-display {
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.gauge-value {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: color 0.3s ease;
+}
+
+.gauge-value-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 0.25rem;
+}
+
+.gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0 1rem;
+}
+
+.gauge-label-left,
+.gauge-label-right {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+}
+
+.gauge-tick-label {
+  user-select: none;
+}
+
+/* Size variants */
+.spectrum-gauge-small {
+  padding: 0.5rem;
+}
+
+.spectrum-gauge-small .gauge-container {
+  max-width: 200px;
+}
+
+.spectrum-gauge-small .gauge-value {
+  font-size: 2rem;
+}
+
+.spectrum-gauge-small .gauge-value-label {
+  font-size: 0.625rem;
+}
+
+.spectrum-gauge-small .gauge-label-left,
+.spectrum-gauge-small .gauge-label-right {
+  font-size: 0.75rem;
+}
+
+.spectrum-gauge-medium {
+  padding: 1rem;
+}
+
+.spectrum-gauge-medium .gauge-container {
+  max-width: 300px;
+}
+
+.spectrum-gauge-medium .gauge-value {
+  font-size: 3rem;
+}
+
+.spectrum-gauge-large {
+  padding: 1.5rem;
+}
+
+.spectrum-gauge-large .gauge-container {
+  max-width: 500px;
+}
+
+.spectrum-gauge-large .gauge-value {
+  font-size: 4rem;
+}
+
+.spectrum-gauge-large .gauge-value-label {
+  font-size: 1rem;
+}
+
+.spectrum-gauge-large .gauge-label-left,
+.spectrum-gauge-large .gauge-label-right {
+  font-size: 1rem;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.gauge-value {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .spectrum-gauge-large .gauge-container {
+    max-width: 350px;
+  }
+  
+  .spectrum-gauge-medium .gauge-container {
+    max-width: 250px;
+  }
+  
+  .spectrum-gauge-small .gauge-container {
+    max-width: 150px;
+  }
+}
+
+/* High contrast for accessibility */
+@media (prefers-contrast: high) {
+  .gauge-tick-label,
+  .gauge-value-label,
+  .gauge-label-left,
+  .gauge-label-right {
+    color: #000;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .gauge-value-label,
+  .gauge-label-left,
+  .gauge-label-right {
+    color: #ccc;
+  }
+  
+  .gauge-tick-label {
+    fill: #999;
+  }
+}

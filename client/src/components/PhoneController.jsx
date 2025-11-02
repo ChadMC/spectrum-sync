@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useWebSocket } from '../hooks/useWebSocket'
+import SpectrumGauge from './SpectrumGauge'
 import './PhoneController.css'
 
 function PhoneController({ gameId: initialGameId }) {
@@ -342,16 +343,14 @@ function PhoneController({ gameId: initialGameId }) {
 
         {spectrum && target !== null && target !== undefined && (
           <div className="spectrum-info">
-            <div className="spectrum-labels">
-              <span className="left">{spectrum.left}</span>
-              <span className="divider">↔</span>
-              <span className="right">{spectrum.right}</span>
-            </div>
-            <div className="target-display-prominent">
-              <div className="target-label-phone">TARGET</div>
-              <div className="target-number-phone">{target}</div>
-              <div className="target-instruction">Give a hint to help the Navigator reach this number!</div>
-            </div>
+            <SpectrumGauge 
+              value={target} 
+              leftLabel={spectrum.left}
+              rightLabel={spectrum.right}
+              size="medium"
+              animate={true}
+            />
+            <div className="target-instruction">Give a hint to help the Navigator reach this number!</div>
           </div>
         )}
 
@@ -414,15 +413,13 @@ function PhoneController({ gameId: initialGameId }) {
 
         {spectrum && target !== null && target !== undefined && (
           <div className="target-reminder-phone">
-            <div className="target-reminder-labels">
-              <span className="left">{spectrum.left}</span>
-              <span className="divider">↔</span>
-              <span className="right">{spectrum.right}</span>
-            </div>
-            <div className="target-reminder-value">
-              <span className="label">Target:</span>
-              <span className="number">{target}</span>
-            </div>
+            <SpectrumGauge 
+              value={target} 
+              leftLabel={spectrum.left}
+              rightLabel={spectrum.right}
+              size="small"
+              animate={false}
+            />
           </div>
         )}
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useWebSocket } from '../hooks/useWebSocket'
+import SpectrumGauge from './SpectrumGauge'
 import './TVDisplay.css'
 
 // Custom event name for URL changes (must match App.jsx)
@@ -28,6 +29,15 @@ function TVDisplay({ gameId: initialGameId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws.connected, gameId])
 
+  // Request game state when connected and gameId is available
+  useEffect(() => {
+    if (ws.connected && gameId) {
+      console.log('TV: Requesting game state for', gameId)
+      ws.getGameState(gameId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.connected, gameId])
+
   useEffect(() => {
     const lastMessage = ws.messages[ws.messages.length - 1]
     if (lastMessage?.type === 'GAME_CREATED') {
@@ -43,7 +53,9 @@ function TVDisplay({ gameId: initialGameId }) {
 
   useEffect(() => {
     if (gameId) {
-      ws.getGameState(gameId)
+      // Set QR URL for existing game
+      const url = `${window.location.origin}/join/${gameId}`
+      setQrUrl(url)
       
       // Fetch available packs
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
@@ -52,7 +64,6 @@ function TVDisplay({ gameId: initialGameId }) {
         .then(data => setPacks(data))
         .catch(err => console.error('Failed to fetch packs:', err))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId])
 
   const handleStartRound = () => {
@@ -358,6 +369,35 @@ function TVDisplay({ gameId: initialGameId }) {
     return (
       <div className="tv-reveal">
         <h1 className="phase-title">🎉 Results!</h1>
+
+        {spectrum && target !== null && target !== undefined && (
+          <div className="reveal-gauges">
+            <div className="gauge-section">
+              <h3 className="gauge-title">🎯 Target</h3>
+              <SpectrumGauge 
+                value={target} 
+                leftLabel={spectrum.left}
+                rightLabel={spectrum.right}
+                valueLabel="TARGET"
+                size="large"
+                animate={true}
+              />
+            </div>
+            {placement !== null && placement !== undefined && (
+              <div className="gauge-section">
+                <h3 className="gauge-title">📍 Navigator's Guess</h3>
+                <SpectrumGauge 
+                  value={placement} 
+                  leftLabel={spectrum.left}
+                  rightLabel={spectrum.right}
+                  valueLabel="GUESS"
+                  size="large"
+                  animate={true}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {spectrum && (
           <div className="spectrum-display">
