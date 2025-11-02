@@ -514,132 +514,187 @@ class Game {
   }
 }
 
-// Phase transition helpers
-function transitionToHintPhase(game) {
-  if (game.state !== 'ROUND_START') return;
-  
-  game.state = 'HINT';
-  const hintTime = PHASE_SECONDS.HINT + game.getTimeBonus();
-  game.startTimer(hintTime, () => {
-    // Auto-transition to VOTE phase
-    transitionToVotePhase(game);
-  });
-  
-  // Send individual states to show target to Cluers
-  sendPlayerSpecificGameStates(game);
-  
-  // Also send HINT_PHASE_START message
-  for (const [playerId] of game.players) {
-    sendToPlayer(playerId, {
-      type: 'HINT_PHASE_START',
-      state: game.getGameState(playerId)
-    });
-  }
-}
-
-function transitionToVotePhase(game) {
-  if (game.state !== 'HINT') return;
-  
-  // Process duplicates
-  const canceledPlayers = game.processDuplicates();
-  
-  if (canceledPlayers.length > 0) {
-    // Notify canceled players
-    for (const playerId of canceledPlayers) {
-      sendToPlayer(playerId, {
-        type: 'HINT_CANCELED',
-        reason: 'Duplicate detected - you may resubmit once'
-      });
+// Phase transition configuration - defines the game flow
+const PHASE_FLOW = {
+  'ROUND_START': {
+    next: 'HINT',
+    duration: PHASE_SECONDS.SPECTRUM_REVEAL,
+    hasTimeBonus: false,
+    onEnter: null,
+    onExit: null
+  },
+  'HINT': {
+    next: 'VOTE',
+    duration: PHASE_SECONDS.HINT,
+    hasTimeBonus: true,
+    onEnter: (game) => {
+      // Send individual states to show target to Cluers
+      sendPlayerSpecificGameStates(game);
+      for (const [playerId] of game.players) {
+        sendToPlayer(playerId, {
+          type: 'HINT_PHASE_START',
+          state: game.getGameState(playerId)
+        });
+      }
+    },
+    onExit: (game) => {
+      // Process duplicates before voting
+      const canceledPlayers = game.processDuplicates();
+      if (canceledPlayers.length > 0) {
+        for (const playerId of canceledPlayers) {
+          sendToPlayer(playerId, {
+            type: 'HINT_CANCELED',
+            reason: 'Duplicate detected - you may resubmit once'
+          });
+        }
+      }
     }
-  }
-  
-  // Transition to voting
-  game.state = 'VOTE';
-  game.startTimer(PHASE_SECONDS.VOTE, () => {
-    // Auto-transition to PLACE phase
-    transitionToPlacePhase(game);
-  });
-  
-  broadcastToGame(game.id, {
-    type: 'VOTE_START',
-    hints: game.getActiveHints(),
-    maxVotes: 2
-  });
-}
-
-function transitionToPlacePhase(game) {
-  if (game.state !== 'VOTE') return;
-  
-  game.state = 'PLACE';
-  const placeTime = PHASE_SECONDS.PLACE + game.getTimeBonus();
-  game.startTimer(placeTime, () => {
-    // Auto-transition to REVEAL phase (with default placement if not set)
-    transitionToRevealPhase(game);
-  });
-  
-  const finalClueIds = game.calculateFinalClues();
-  const finalClues = finalClueIds.map(id => {
-    const hint = game.hints.get(id);
-    return { id, text: hint.text };
-  });
-  
-  broadcastToGame(game.id, {
-    type: 'PLACE_START',
-    finalClues,
-    phase: 'PLACE'
-  });
-}
-
-function transitionToRevealPhase(game) {
-  if (game.state !== 'PLACE') return;
-  
-  // If navigator didn't place, use middle of scale (50 on 0-100 scale) as default
-  if (game.placement === null) {
-    game.placement = 50;
-  }
-  
-  game.state = 'REVEAL';
-  game.startTimer(PHASE_SECONDS.REVEAL, () => {
-    // Auto-transition to next round or game over
-    transitionAfterReveal(game);
-  });
-  
-  const scores = game.calculateScores();
-  
-  broadcastToGame(game.id, {
-    type: 'REVEAL',
-    target: game.target,
-    placement: game.placement,
-    distance: scores.distance,
-    pointsPerPlayer: scores.pointsPerPlayer,
-    teamResult: scores.teamResult,
-    finalClueAuthors: scores.finalClueIds.map(id => {
-      const player = game.players.get(id);
-      return { hintId: id, playerId: id, name: player?.name, avatar: player?.avatar };
-    })
-  });
-}
-
-function transitionAfterReveal(game) {
-  if (game.state !== 'REVEAL') return;
-  
-  // Check win condition
-  if (game.checkWinCondition()) {
-    broadcastToGame(game.id, {
-      type: 'GAME_OVER',
-      leaderboard: game.getLeaderboard()
-    });
-  } else {
-    // Wait buffer time then prepare for next round
-    game.startTimer(PHASE_SECONDS.BUFFER, () => {
-      // Return to lobby-like state, ready for next round
-      game.state = 'LOBBY';
+  },
+  'VOTE': {
+    next: 'PLACE',
+    duration: PHASE_SECONDS.VOTE,
+    hasTimeBonus: false,
+    onEnter: (game) => {
+      broadcastToGame(game.id, {
+        type: 'VOTE_START',
+        hints: game.getActiveHints(),
+        maxVotes: 2
+      });
+    },
+    onExit: null
+  },
+  'PLACE': {
+    next: 'REVEAL',
+    duration: PHASE_SECONDS.PLACE,
+    hasTimeBonus: true,
+    onEnter: (game) => {
+      const finalClueIds = game.calculateFinalClues();
+      const finalClues = finalClueIds.map(id => {
+        const hint = game.hints.get(id);
+        return { id, text: hint.text };
+      });
+      broadcastToGame(game.id, {
+        type: 'PLACE_START',
+        finalClues,
+        phase: 'PLACE'
+      });
+    },
+    onExit: (game) => {
+      // If navigator didn't place, use middle of scale as default
+      if (game.placement === null) {
+        game.placement = 50;
+      }
+    }
+  },
+  'REVEAL': {
+    next: 'END_ROUND',
+    duration: PHASE_SECONDS.REVEAL,
+    hasTimeBonus: false,
+    onEnter: (game) => {
+      const scores = game.calculateScores();
+      broadcastToGame(game.id, {
+        type: 'REVEAL',
+        target: game.target,
+        placement: game.placement,
+        distance: scores.distance,
+        pointsPerPlayer: scores.pointsPerPlayer,
+        teamResult: scores.teamResult,
+        finalClueAuthors: scores.finalClueIds.map(id => {
+          const player = game.players.get(id);
+          return { hintId: id, playerId: id, name: player?.name, avatar: player?.avatar };
+        })
+      });
+    },
+    onExit: null
+  },
+  'END_ROUND': {
+    next: 'LOBBY',
+    duration: PHASE_SECONDS.BUFFER,
+    hasTimeBonus: false,
+    onEnter: (game) => {
+      // Check win condition
+      if (game.checkWinCondition()) {
+        // Game over - don't transition to lobby
+        game.state = 'GAME_OVER';
+        broadcastToGame(game.id, {
+          type: 'GAME_OVER',
+          leaderboard: game.getLeaderboard()
+        });
+        return false; // Stop transition chain
+      }
+      return true; // Continue to LOBBY
+    },
+    onExit: (game) => {
       broadcastToGame(game.id, {
         type: 'ROUND_COMPLETE',
         state: game.getGameState()
       });
+    }
+  }
+};
+
+/**
+ * Generic phase transition function - handles all phase changes
+ * Simplifies game flow by using configuration instead of separate functions
+ */
+function transitionToPhase(game, targetPhase) {
+  const phaseConfig = PHASE_FLOW[targetPhase];
+  if (!phaseConfig) {
+    console.error(`Unknown phase: ${targetPhase}`);
+    return;
+  }
+  
+  // Execute exit handler for current phase
+  const currentConfig = PHASE_FLOW[game.state];
+  if (currentConfig?.onExit) {
+    currentConfig.onExit(game);
+  }
+  
+  // Update state
+  game.state = targetPhase;
+  
+  // Execute enter handler for new phase
+  if (phaseConfig.onEnter) {
+    const continueTransition = phaseConfig.onEnter(game);
+    // If onEnter returns false, stop (e.g., game over)
+    if (continueTransition === false) {
+      return;
+    }
+  }
+  
+  // Set up auto-transition timer if there's a next phase
+  if (phaseConfig.next) {
+    const duration = phaseConfig.duration + (phaseConfig.hasTimeBonus ? game.getTimeBonus() : 0);
+    game.startTimer(duration, () => {
+      transitionToPhase(game, phaseConfig.next);
     });
   }
+}
+
+// Convenience functions for backward compatibility and clarity
+function transitionToHintPhase(game) {
+  if (game.state !== 'ROUND_START') return;
+  transitionToPhase(game, 'HINT');
+}
+
+function transitionToVotePhase(game) {
+  if (game.state !== 'HINT') return;
+  transitionToPhase(game, 'VOTE');
+}
+
+function transitionToPlacePhase(game) {
+  if (game.state !== 'VOTE') return;
+  transitionToPhase(game, 'PLACE');
+}
+
+function transitionToRevealPhase(game) {
+  if (game.state !== 'PLACE') return;
+  transitionToPhase(game, 'REVEAL');
+}
+
+function transitionAfterReveal(game) {
+  if (game.state !== 'REVEAL') return;
+  transitionToPhase(game, 'END_ROUND');
 }
 
 // WebSocket handling
