@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useWebSocket } from '../hooks/useWebSocket'
 import SpectrumGauge from './SpectrumGauge'
+import SpectrumBar from './SpectrumBar'
 import './TVDisplay.css'
 
 // Custom event name for URL changes (must match App.jsx)
@@ -221,21 +222,10 @@ function TVDisplay({ gameId: initialGameId }) {
         <h1 className="phase-title">💡 Cluers Submitting Hints</h1>
 
         {spectrum && (
-          <div className="spectrum-display">
-            <div className="spectrum-bar">
-              <span className="spectrum-left">{spectrum.left}</span>
-              <div className="spectrum-line">
-                <div className="spectrum-ticks">
-                  <span className="tick">0</span>
-                  <span className="tick">25</span>
-                  <span className="tick">50</span>
-                  <span className="tick">75</span>
-                  <span className="tick">100</span>
-                </div>
-              </div>
-              <span className="spectrum-right">{spectrum.right}</span>
-            </div>
-          </div>
+          <SpectrumBar 
+            leftLabel={spectrum.left}
+            rightLabel={spectrum.right}
+          />
         )}
 
         <div className="submission-status">
@@ -329,21 +319,10 @@ function TVDisplay({ gameId: initialGameId }) {
         </div>
 
         {spectrum && (
-          <div className="spectrum-display">
-            <div className="spectrum-bar">
-              <span className="spectrum-left">{spectrum.left}</span>
-              <div className="spectrum-line">
-                <div className="spectrum-ticks">
-                  <span className="tick">0</span>
-                  <span className="tick">25</span>
-                  <span className="tick">50</span>
-                  <span className="tick">75</span>
-                  <span className="tick">100</span>
-                </div>
-              </div>
-              <span className="spectrum-right">{spectrum.right}</span>
-            </div>
-          </div>
+          <SpectrumBar 
+            leftLabel={spectrum.left}
+            rightLabel={spectrum.right}
+          />
         )}
 
         <div className="final-clues-display">
@@ -414,31 +393,12 @@ function TVDisplay({ gameId: initialGameId }) {
         )}
 
         {spectrum && (
-          <div className="spectrum-display">
-            <div className="spectrum-bar">
-              <span className="spectrum-left">{spectrum.left}</span>
-              <div className="spectrum-line">
-                <div className="spectrum-ticks">
-                  <span className="tick">0</span>
-                  <span className="tick">25</span>
-                  <span className="tick">50</span>
-                  <span className="tick">75</span>
-                  <span className="tick">100</span>
-                </div>
-                {target !== null && (
-                  <div className="target-marker" style={{ left: `${target}%` }}>
-                    <div className="marker-label">🎯 Target: {target}</div>
-                  </div>
-                )}
-                {placement !== null && (
-                  <div className="placement-marker" style={{ left: `${placement}%` }}>
-                    <div className="marker-label">📍 Guess: {placement}</div>
-                  </div>
-                )}
-              </div>
-              <span className="spectrum-right">{spectrum.right}</span>
-            </div>
-          </div>
+          <SpectrumBar 
+            leftLabel={spectrum.left}
+            rightLabel={spectrum.right}
+            target={target}
+            placement={placement}
+          />
         )}
 
         <div className="result-summary">
