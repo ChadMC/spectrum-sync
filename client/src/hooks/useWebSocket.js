@@ -105,7 +105,8 @@ export function useWebSocket() {
     ws.current.onerror = (error) => {
       console.error('WebSocket error:', error)
     }
-  }, [sendMessage])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     connect()
@@ -115,7 +116,8 @@ export function useWebSocket() {
         ws.current.close()
       }
     }
-  }, [connect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const sendMessage = useCallback((type, data = {}) => {
     if (ws.current?.readyState === WebSocket.OPEN) {

@@ -78,7 +78,8 @@ function PhoneController({ gameId: initialGameId }) {
       setPlacementValue(50)
       ws.clearMessages()
     }
-  }, [ws])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.messages])
 
   const handleJoin = (e) => {
     e.preventDefault()

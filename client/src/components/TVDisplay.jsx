@@ -14,7 +14,8 @@ function TVDisplay({ gameId: initialGameId }) {
     if (ws.connected && !gameId) {
       ws.createGame()
     }
-  }, [ws, gameId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.connected, gameId])
 
   useEffect(() => {
     const lastMessage = ws.messages[ws.messages.length - 1]
@@ -36,7 +37,8 @@ function TVDisplay({ gameId: initialGameId }) {
         .then(data => setPacks(data))
         .catch(err => console.error('Failed to fetch packs:', err))
     }
-  }, [ws, gameId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId])
 
   const handleStartRound = () => {
     ws.startRound(gameId)

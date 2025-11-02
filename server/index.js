@@ -40,7 +40,16 @@ const AVATARS = [
   '🦁', '🐮', '🐷', '🐸', '🐵', '🦄', '🦋', '🐝', '🐛', '🦀'
 ];
 
-// Text normalization for duplicate detection
+/**
+ * Normalizes text for duplicate detection by applying the following transformations:
+ * 1. Convert to lowercase
+ * 2. Trim and collapse multiple spaces into single space
+ * 3. Remove punctuation (keeping only word characters, spaces, and emoji)
+ * 4. Collapse repeated characters (e.g., "hellooo" -> "helo")
+ * 5. Remove diacritical marks (e.g., "café" -> "cafe")
+ * 
+ * This ensures that hints like "Spicy!", "spicy", and "SPICY!!!" are treated as duplicates.
+ */
 function normalizeText(text) {
   return text
     .toLowerCase()
