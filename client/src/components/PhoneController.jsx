@@ -340,16 +340,17 @@ function PhoneController({ gameId: initialGameId }) {
         <h1 className="phase-title">💡 Submit Your Hint</h1>
         <Timer endTime={ws.gameState.timerEndTime} />
 
-        {spectrum && (
+        {spectrum && target !== null && target !== undefined && (
           <div className="spectrum-info">
             <div className="spectrum-labels">
               <span className="left">{spectrum.left}</span>
               <span className="divider">↔</span>
               <span className="right">{spectrum.right}</span>
             </div>
-            <div className="target-display">
-              <h2>🎯 Target: {target}</h2>
-              <p className="target-hint">Help the Navigator guess this value!</p>
+            <div className="target-display-prominent">
+              <div className="target-label-phone">TARGET</div>
+              <div className="target-number-phone">{target}</div>
+              <div className="target-instruction">Give a hint to help the Navigator reach this number!</div>
             </div>
           </div>
         )}
@@ -403,10 +404,27 @@ function PhoneController({ gameId: initialGameId }) {
     }
 
     // Cluer view
+    const target = ws.gameState?.target
+    const spectrum = ws.gameState?.spectrum
+
     return (
       <div className="phone-vote-cluer">
         <h1 className="phase-title">🗳️ Vote for Best Hints</h1>
         <Timer endTime={ws.gameState.timerEndTime} />
+
+        {spectrum && target !== null && target !== undefined && (
+          <div className="target-reminder-phone">
+            <div className="target-reminder-labels">
+              <span className="left">{spectrum.left}</span>
+              <span className="divider">↔</span>
+              <span className="right">{spectrum.right}</span>
+            </div>
+            <div className="target-reminder-value">
+              <span className="label">Target:</span>
+              <span className="number">{target}</span>
+            </div>
+          </div>
+        )}
 
         <p className="vote-instruction">
           Select up to 2 hints that will best help the Navigator.
