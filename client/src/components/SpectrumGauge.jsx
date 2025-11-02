@@ -9,10 +9,11 @@ import './SpectrumGauge.css'
  * @param {number} value - The value to display (0-100)
  * @param {string} leftLabel - Label for the left side (e.g., "Cold")
  * @param {string} rightLabel - Label for the right side (e.g., "Hot")
+ * @param {string} valueLabel - Label for the value (default: 'TARGET')
  * @param {boolean} animate - Whether to animate the needle (default: true)
  * @param {string} size - Size variant: 'small', 'medium', 'large' (default: 'medium')
  */
-function SpectrumGauge({ value, leftLabel = '', rightLabel = '', animate = true, size = 'medium' }) {
+function SpectrumGauge({ value, leftLabel = '', rightLabel = '', valueLabel = 'TARGET', animate = true, size = 'medium' }) {
   const [displayValue, setDisplayValue] = useState(0)
   
   // Clamp value between 0 and 100
@@ -185,7 +186,7 @@ function SpectrumGauge({ value, leftLabel = '', rightLabel = '', animate = true,
           <div className="gauge-value" style={{ color: needleColor }}>
             {Math.round(displayValue)}
           </div>
-          <div className="gauge-value-label">TARGET</div>
+          <div className="gauge-value-label">{valueLabel}</div>
         </div>
         
         {/* Side labels */}

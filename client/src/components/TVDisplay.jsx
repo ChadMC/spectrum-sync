@@ -378,6 +378,7 @@ function TVDisplay({ gameId: initialGameId }) {
                 value={target} 
                 leftLabel={spectrum.left}
                 rightLabel={spectrum.right}
+                valueLabel="TARGET"
                 size="large"
                 animate={true}
               />
@@ -389,6 +390,7 @@ function TVDisplay({ gameId: initialGameId }) {
                   value={placement} 
                   leftLabel={spectrum.left}
                   rightLabel={spectrum.right}
+                  valueLabel="GUESS"
                   size="large"
                   animate={true}
                 />
