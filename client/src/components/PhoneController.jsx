@@ -10,7 +10,6 @@ function PhoneController({ gameId: initialGameId }) {
   const [avatars, setAvatars] = useState([])
   const [hintText, setHintText] = useState('')
   const [hasSubmittedHint, setHasSubmittedHint] = useState(false)
-  const [hintCanceled, setHintCanceled] = useState(false)
   const [selectedVotes, setSelectedVotes] = useState([])
   const [hasSubmittedVote, setHasSubmittedVote] = useState(false)
   const [placementValue, setPlacementValue] = useState(50)
@@ -50,7 +49,6 @@ function PhoneController({ gameId: initialGameId }) {
       alert(lastMessage.reason || 'Hint rejected')
       ws.clearMessages()
     } else if (lastMessage?.type === 'HINT_CANCELED') {
-      setHintCanceled(true)
       setHasSubmittedHint(false)
       alert(lastMessage.reason || 'Your hint was canceled due to duplicate')
       ws.clearMessages()
@@ -65,7 +63,6 @@ function PhoneController({ gameId: initialGameId }) {
     } else if (lastMessage?.type === 'ROUND_START' || lastMessage?.type === 'HINT_PHASE_START') {
       // Reset state for new round
       setHasSubmittedHint(false)
-      setHintCanceled(false)
       setHasSubmittedVote(false)
       setSelectedVotes([])
       setHintText('')
@@ -81,7 +78,7 @@ function PhoneController({ gameId: initialGameId }) {
       setPlacementValue(50)
       ws.clearMessages()
     }
-  }, [ws.messages])
+  }, [ws])
 
   const handleJoin = (e) => {
     e.preventDefault()
@@ -440,7 +437,7 @@ function PhoneController({ gameId: initialGameId }) {
               <p className="no-clues">No clues! Navigator is guessing blind!</p>
             ) : (
               <div className="clues-list">
-                {finalClues.map((clue, index) => (
+                {finalClues.map((clue) => (
                   <div key={clue.id} className="clue-item">
                     <span className="clue-text">"{clue.text}"</span>
                   </div>

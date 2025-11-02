@@ -105,7 +105,7 @@ export function useWebSocket() {
     ws.current.onerror = (error) => {
       console.error('WebSocket error:', error)
     }
-  }, [])
+  }, [sendMessage])
 
   useEffect(() => {
     connect()
@@ -167,10 +167,6 @@ export function useWebSocket() {
 
   const mutePlayer = useCallback((gameId, playerId) => {
     return sendMessage('MUTE_PLAYER', { gameId, playerId })
-  }, [sendMessage])
-
-  const toggleStreamerMode = useCallback((gameId) => {
-    return sendMessage('TOGGLE_STREAMER_MODE', { gameId })
   }, [sendMessage])
 
   const setSpectrumPack = useCallback((gameId, pack) => {

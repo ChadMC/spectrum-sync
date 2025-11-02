@@ -14,7 +14,7 @@ function TVDisplay({ gameId: initialGameId }) {
     if (ws.connected && !gameId) {
       ws.createGame()
     }
-  }, [ws.connected, gameId])
+  }, [ws, gameId])
 
   useEffect(() => {
     const lastMessage = ws.messages[ws.messages.length - 1]
@@ -36,7 +36,7 @@ function TVDisplay({ gameId: initialGameId }) {
         .then(data => setPacks(data))
         .catch(err => console.error('Failed to fetch packs:', err))
     }
-  }, [gameId])
+  }, [ws, gameId])
 
   const handleStartRound = () => {
     ws.startRound(gameId)
@@ -310,7 +310,7 @@ function TVDisplay({ gameId: initialGameId }) {
             {finalClues.length === 0 ? (
               <p className="no-clues">No clues selected! Navigator must guess blind.</p>
             ) : (
-              finalClues.map((clue, index) => (
+              finalClues.map((clue) => (
                 <div key={clue.id} className="final-clue-item">
                   <span className="clue-text">"{clue.text}"</span>
                 </div>
