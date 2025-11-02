@@ -465,6 +465,11 @@ class Game {
       state.hints = this.getActiveHints();
       state.votesSubmitted = this.votes.size;
       state.totalVoters = this.players.size - 1; // excluding Navigator
+      
+      // Also include target for cluers (for context when they refresh)
+      if (forPlayerId && forPlayerId !== this.navigatorId) {
+        state.target = this.target;
+      }
     }
 
     if (this.state === 'PLACE') {
@@ -473,6 +478,11 @@ class Game {
         const hint = this.hints.get(id);
         return { id, text: hint.text };
       });
+      
+      // Include target for cluers (for reference when they refresh)
+      if (forPlayerId && forPlayerId !== this.navigatorId) {
+        state.target = this.target;
+      }
     }
 
     if (this.state === 'REVEAL') {
