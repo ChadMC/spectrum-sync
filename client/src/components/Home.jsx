@@ -19,7 +19,7 @@ function Home({ onCreateGame, onJoinGame }) {
   return (
     <div className="home">
       <div className="home-container">
-        <h1 className="game-title">🌈 Spectrum Sync</h1>
+        <h1 className="game-title">🧭 Spectrum Sync</h1>
         <p className="game-subtitle">Cooperative spectrum guessing game!</p>
         
         <div className="home-actions">
