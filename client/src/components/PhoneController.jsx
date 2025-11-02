@@ -39,7 +39,10 @@ function PhoneController({ gameId: initialGameId }) {
       setGameId(lastMessage.gameId)
       ws.clearMessages()
     } else if (lastMessage?.type === 'ERROR') {
-      alert(lastMessage.message)
+      // Don't show alert for reconnect errors - we handle them gracefully
+      if (!lastMessage.message?.includes('reconnect')) {
+        alert(lastMessage.message)
+      }
       ws.clearMessages()
     } else if (lastMessage?.type === 'HINT_ACCEPTED') {
       setHasSubmittedHint(true)

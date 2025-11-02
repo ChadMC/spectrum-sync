@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
+const RECONNECT_TIMEOUT_MS = 5000
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
@@ -10,9 +11,22 @@ export function useWebSocket() {
   const [submissionStatus, setSubmissionStatus] = useState(null)
   const ws = useRef(null)
   const reconnectToken = useRef(localStorage.getItem('reconnectToken'))
+  const reconnectAttempted = useRef(false)
+  const connectionTimeout = useRef(null)
+
+  const clearReconnectToken = useCallback(() => {
+    reconnectToken.current = null
+    localStorage.removeItem('reconnectToken')
+  }, [])
 
   const connect = useCallback(() => {
     if (ws.current?.readyState === WebSocket.OPEN) return
+
+    // Clear any existing connection timeout
+    if (connectionTimeout.current) {
+      clearTimeout(connectionTimeout.current)
+      connectionTimeout.current = null
+    }
 
     ws.current = new WebSocket(WS_URL)
 
@@ -20,9 +34,22 @@ export function useWebSocket() {
       console.log('WebSocket connected')
       setConnected(true)
       
-      // Try to reconnect if we have a token
-      if (reconnectToken.current) {
-        sendMessage('RECONNECT', { token: reconnectToken.current })
+      // Try to reconnect if we have a token and haven't attempted yet
+      if (reconnectToken.current && !reconnectAttempted.current) {
+        reconnectAttempted.current = true
+        
+        // Send reconnect message
+        const message = JSON.stringify({ 
+          type: 'RECONNECT', 
+          data: { token: reconnectToken.current } 
+        })
+        ws.current.send(message)
+        
+        // Set a timeout for reconnect attempt - if no response, clear token
+        connectionTimeout.current = setTimeout(() => {
+          console.log('Reconnect timeout - clearing stale token')
+          clearReconnectToken()
+        }, RECONNECT_TIMEOUT_MS)
       }
     }
 
@@ -78,12 +105,31 @@ export function useWebSocket() {
           case 'ROUND_COMPLETE':
             setMessages(prev => [...prev, data])
             break
+          case 'RECONNECTED':
+            // Clear connection timeout on successful reconnect
+            if (connectionTimeout.current) {
+              clearTimeout(connectionTimeout.current)
+              connectionTimeout.current = null
+            }
+            setMessages(prev => [...prev, data])
+            break
+          case 'ERROR':
+            // If error is about invalid reconnect token, clear it
+            if (data.message && data.message.includes('reconnect')) {
+              console.log('Invalid reconnect token - clearing')
+              clearReconnectToken()
+              // Clear connection timeout
+              if (connectionTimeout.current) {
+                clearTimeout(connectionTimeout.current)
+                connectionTimeout.current = null
+              }
+            }
+            setMessages(prev => [...prev, data])
+            break
           case 'GAME_CREATED':
           case 'JOINED_GAME':
-          case 'RECONNECTED':
           case 'PACK_UPDATED':
           case 'TIME_ADDED':
-          case 'ERROR':
             setMessages(prev => [...prev, data])
             break
         }
@@ -95,6 +141,9 @@ export function useWebSocket() {
     ws.current.onclose = () => {
       console.log('WebSocket disconnected')
       setConnected(false)
+      
+      // Reset reconnect attempt flag so it can be tried again on reconnection
+      reconnectAttempted.current = false
       
       // Reconnect after 3 seconds
       setTimeout(() => {
@@ -112,6 +161,11 @@ export function useWebSocket() {
     connect()
 
     return () => {
+      // Clean up connection timeout
+      if (connectionTimeout.current) {
+        clearTimeout(connectionTimeout.current)
+        connectionTimeout.current = null
+      }
       if (ws.current) {
         ws.current.close()
       }
@@ -218,6 +272,7 @@ export function useWebSocket() {
     addTime,
     getGameState,
     saveReconnectToken,
+    clearReconnectToken,
     clearMessages
   }
 }
