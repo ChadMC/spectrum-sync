@@ -8,9 +8,11 @@ function PhoneController({ gameId: initialGameId }) {
   const [name, setName] = useState('')
   const [selectedAvatar, setSelectedAvatar] = useState('')
   const [avatars, setAvatars] = useState([])
-  const [answer, setAnswer] = useState('')
-  const [hasSubmittedAnswer, setHasSubmittedAnswer] = useState(false)
+  const [hintText, setHintText] = useState('')
+  const [hasSubmittedHint, setHasSubmittedHint] = useState(false)
+  const [selectedVotes, setSelectedVotes] = useState([])
   const [hasSubmittedVote, setHasSubmittedVote] = useState(false)
+  const [placementValue, setPlacementValue] = useState(50)
   const ws = useWebSocket()
 
   useEffect(() => {
@@ -36,31 +38,47 @@ function PhoneController({ gameId: initialGameId }) {
       setJoined(true)
       setGameId(lastMessage.gameId)
       ws.clearMessages()
-    } else if (lastMessage?.type === 'PLAYER_KICKED') {
-      if (lastMessage.playerId === ws.clientId) {
-        alert('You have been kicked from the game')
-        window.location.href = '/'
-      }
     } else if (lastMessage?.type === 'ERROR') {
       alert(lastMessage.message)
       ws.clearMessages()
-    } else if (lastMessage?.type === 'ANSWER_ACCEPTED') {
-      setHasSubmittedAnswer(true)
+    } else if (lastMessage?.type === 'HINT_ACCEPTED') {
+      setHasSubmittedHint(true)
+      setHintText('')
+      ws.clearMessages()
+    } else if (lastMessage?.type === 'HINT_REJECTED') {
+      alert(lastMessage.reason || 'Hint rejected')
+      ws.clearMessages()
+    } else if (lastMessage?.type === 'HINT_CANCELED') {
+      setHasSubmittedHint(false)
+      alert(lastMessage.reason || 'Your hint was canceled due to duplicate')
       ws.clearMessages()
     } else if (lastMessage?.type === 'VOTE_ACCEPTED') {
       setHasSubmittedVote(true)
       ws.clearMessages()
-    } else if (lastMessage?.type === 'NEXT_PROMPT' || lastMessage?.type === 'ROUND_STARTED') {
-      // Reset submission state when moving to next prompt or new round
-      setHasSubmittedAnswer(false)
-      setHasSubmittedVote(false)
+    } else if (lastMessage?.type === 'VOTE_REJECTED') {
+      alert(lastMessage.reason || 'Vote rejected')
       ws.clearMessages()
-    } else if (lastMessage?.type === 'VOTING_STARTED') {
-      // Reset answer submission state when voting starts
-      setHasSubmittedAnswer(false)
+    } else if (lastMessage?.type === 'PLACEMENT_ACCEPTED') {
+      ws.clearMessages()
+    } else if (lastMessage?.type === 'ROUND_START' || lastMessage?.type === 'HINT_PHASE_START') {
+      // Reset state for new round
+      setHasSubmittedHint(false)
       setHasSubmittedVote(false)
+      setSelectedVotes([])
+      setHintText('')
+      setPlacementValue(50)
+      ws.clearMessages()
+    } else if (lastMessage?.type === 'VOTE_START') {
+      // Reset vote state
+      setHasSubmittedVote(false)
+      setSelectedVotes([])
+      ws.clearMessages()
+    } else if (lastMessage?.type === 'PLACE_START') {
+      // Reset placement
+      setPlacementValue(50)
       ws.clearMessages()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws.messages])
 
   const handleJoin = (e) => {
@@ -70,19 +88,33 @@ function PhoneController({ gameId: initialGameId }) {
     }
   }
 
-  const handleSubmitAnswer = () => {
-    if (answer.trim()) {
-      ws.submitAnswer(gameId, answer.trim())
-      setAnswer('')
+  const handleSubmitHint = () => {
+    if (hintText.trim()) {
+      ws.submitHint(gameId, hintText.trim())
     }
   }
 
-  const handleEmojiAnswer = (emoji) => {
-    ws.submitAnswer(gameId, emoji)
+  const handleToggleVote = (hintId) => {
+    if (selectedVotes.includes(hintId)) {
+      setSelectedVotes(selectedVotes.filter(id => id !== hintId))
+    } else if (selectedVotes.length < 2) {
+      setSelectedVotes([...selectedVotes, hintId])
+    }
   }
 
-  const handleVote = (playerId) => {
-    ws.submitVote(gameId, playerId)
+  const handleSubmitVote = () => {
+    ws.submitVote(gameId, selectedVotes)
+  }
+
+  const handleLockPlacement = () => {
+    ws.submitPlacement(gameId, placementValue)
+    ws.lockPlacement(gameId)
+  }
+
+  const handlePlacementChange = (e) => {
+    const value = parseInt(e.target.value)
+    setPlacementValue(value)
+    ws.submitPlacement(gameId, value)
   }
 
   if (!ws.connected) {
@@ -97,7 +129,7 @@ function PhoneController({ gameId: initialGameId }) {
   if (!joined) {
     return (
       <div className="phone-join">
-        <h1 className="phone-title">🎯 Join Game</h1>
+        <h1 className="phone-title">🧭 Join Game</h1>
         
         <form onSubmit={handleJoin} className="join-form">
           <div className="form-group">
@@ -157,256 +189,451 @@ function PhoneController({ gameId: initialGameId }) {
     )
   }
 
-  const renderLobby = () => {
-    const players = ws.gameState?.players || []
-    const playerCount = players.length
+  const myPlayerId = ws.clientId
+  const isNavigator = ws.gameState.navigatorId === myPlayerId
+  const gameState = ws.gameState.state
+
+  // Lobby state
+  if (gameState === 'LOBBY') {
+    const players = ws.gameState.players || []
+    const myPlayer = players.find(p => p.id === myPlayerId)
 
     return (
       <div className="phone-lobby">
-        <h1 className="phone-title">🎯 Waiting to Start</h1>
-        
-        <div className="game-info">
-          <div className="info-item">
-            <span className="label">Game Code:</span>
-            <span className="value">{gameId}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">Players:</span>
-            <span className="value">{playerCount}/12</span>
-          </div>
+        <h1 className="phone-title">🧭 Spectrum Sync</h1>
+        <div className="game-code-display">
+          <p>Game Code:</p>
+          <h2 className="code">{gameId}</h2>
+        </div>
+
+        <div className="my-player-card">
+          <span className="avatar-large">{myPlayer?.avatar}</span>
+          <h3>{myPlayer?.name}</h3>
+          <p className="score">{myPlayer?.score} points</p>
+        </div>
+
+        <div className="waiting-message">
+          <p>Waiting for host to start the game...</p>
+          <p className="player-count">{players.length}/12 players</p>
         </div>
 
         <div className="players-list">
+          <h3>Players:</h3>
           {players.map(player => (
             <div key={player.id} className="player-item">
               <span className="avatar">{player.avatar}</span>
               <span className="name">{player.name}</span>
-              {player.isHost && <span className="badge">👑</span>}
+              {player.isHost && <span className="host-badge">👑</span>}
             </div>
           ))}
         </div>
-
-        <p className="waiting-message">Waiting for host to start the game...</p>
       </div>
     )
   }
 
-  const renderPlaying = () => {
-    const prompt = ws.gameState?.currentPrompt
-    const clue = ws.gameState?.clue
-    const isOdd = ws.gameState?.isOdd
+  // Round start state
+  if (gameState === 'ROUND_START') {
+    const spectrum = ws.gameState.spectrum
+    const navigator = ws.gameState.players?.find(p => p.id === ws.gameState.navigatorId)
 
     return (
-      <div className="phone-playing">
-        <div className="clue-display">
-          <h2>{isOdd ? '🎭 You are the ODD ONE!' : '👥 You are NORMAL'}</h2>
-          <div className="clue-box">
-            <p className="clue">{clue}</p>
-          </div>
-        </div>
+      <div className="phone-round-start">
+        <h1 className="phase-title">🧭 New Round!</h1>
+        <h2>Round {ws.gameState.currentRound}/{ws.gameState.maxRounds}</h2>
 
-        {hasSubmittedAnswer ? (
-          <div className="submission-confirmation">
-            <div className="confirmation-icon">✓</div>
-            <h2>Answer Submitted!</h2>
-            <p>Waiting for other players...</p>
-          </div>
-        ) : (
-          <div className="prompt-section">
-            <h3 className="prompt-question">{prompt?.question}</h3>
-            
-            {prompt?.type === 'text' && (
-              <div className="text-input-section">
-                <textarea
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  placeholder="Type your answer..."
-                  maxLength={100}
-                  rows={3}
-                />
-                <button 
-                  onClick={handleSubmitAnswer}
-                  disabled={!answer.trim()}
-                  className="btn btn-primary"
-                >
-                  Submit Answer ✓
-                </button>
-              </div>
-            )}
-
-            {prompt?.type === 'emoji' && (
-              <div className="emoji-buttons">
-                {prompt.options.map((emoji, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleEmojiAnswer(emoji)}
-                    className="btn-emoji"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {prompt?.type === 'multiple_choice' && (
-              <div className="choice-buttons">
-                {prompt.options.map((option, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleEmojiAnswer(option)}
-                    className="btn btn-choice"
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            )}
+        {spectrum && (
+          <div className="spectrum-info">
+            <div className="spectrum-labels">
+              <span className="left">{spectrum.left}</span>
+              <span className="divider">↔</span>
+              <span className="right">{spectrum.right}</span>
+            </div>
           </div>
         )}
 
-        <div className="round-info">
-          Round {ws.gameState.currentRound}/{ws.gameState.maxRounds} • 
-          Question {prompt?.index + 1}/{prompt?.total}
+        <div className="navigator-announcement">
+          <h3>Navigator this round:</h3>
+          <div className="navigator-card">
+            <span className="avatar-large">{navigator?.avatar}</span>
+            <span className="name-large">{navigator?.name}</span>
+          </div>
+          {isNavigator && (
+            <p className="navigator-note">You'll place the slider after seeing the hints!</p>
+          )}
+          {!isNavigator && (
+            <p className="cluer-note">You'll submit a hint to help the Navigator!</p>
+          )}
         </div>
       </div>
     )
   }
 
-  const renderVoting = () => {
-    const players = ws.gameState?.players || []
-    const myId = ws.clientId
-    const allPrompts = ws.gameState?.allPrompts || []
-    const answers = ws.gameState?.answers || {}
+  // Hint phase
+  if (gameState === 'HINT') {
+    const spectrum = ws.gameState.spectrum
+    const target = ws.gameState.target
 
-    return (
-      <div className="phone-voting">
-        <h1 className="voting-title">🗳️ Vote!</h1>
-        <p className="voting-instruction">Who is the Odd One Out?</p>
+    if (isNavigator) {
+      return (
+        <div className="phone-hint-navigator">
+          <h1 className="phase-title">🧭 You're the Navigator!</h1>
+          <Timer endTime={ws.gameState.timerEndTime} />
 
-        <div className="answers-review">
-          {allPrompts.map((prompt, idx) => (
-            <div key={idx} className="prompt-section">
-              <h3 className="question">Q{idx + 1}: {prompt.question}</h3>
-              <div className="answers-list">
-                {players.map(player => {
-                  const answer = answers[idx]?.[player.id] || '(no answer)'
-                  return (
-                    <div key={player.id} className="answer-item">
-                      <span className="avatar">{player.avatar}</span>
-                      <span className="name">{player.name}:</span>
-                      <span className="answer">{answer}</span>
-                    </div>
-                  )
-                })}
+          {spectrum && (
+            <div className="spectrum-info">
+              <div className="spectrum-labels">
+                <span className="left">{spectrum.left}</span>
+                <span className="divider">↔</span>
+                <span className="right">{spectrum.right}</span>
               </div>
             </div>
-          ))}
-        </div>
+          )}
 
-        {hasSubmittedVote ? (
-          <div className="submission-confirmation">
-            <div className="confirmation-icon">✓</div>
-            <h2>Vote Submitted!</h2>
-            <p>Waiting for other players...</p>
+          <div className="waiting-message">
+            <p>Wait for the Cluers to submit their hints...</p>
+            <p className="instruction">You'll see the winning hints and place a slider from 0-100!</p>
+          </div>
+        </div>
+      )
+    }
+
+    // Cluer view
+    return (
+      <div className="phone-hint-cluer">
+        <h1 className="phase-title">💡 Submit Your Hint</h1>
+        <Timer endTime={ws.gameState.timerEndTime} />
+
+        {spectrum && (
+          <div className="spectrum-info">
+            <div className="spectrum-labels">
+              <span className="left">{spectrum.left}</span>
+              <span className="divider">↔</span>
+              <span className="right">{spectrum.right}</span>
+            </div>
+            <div className="target-display">
+              <h2>🎯 Target: {target}</h2>
+              <p className="target-hint">Help the Navigator guess this value!</p>
+            </div>
+          </div>
+        )}
+
+        {!hasSubmittedHint ? (
+          <div className="hint-input">
+            <label>Your Hint (short and helpful!):</label>
+            <textarea
+              value={hintText}
+              onChange={(e) => setHintText(e.target.value)}
+              placeholder="Enter a hint..."
+              maxLength={100}
+              rows={3}
+            />
+            <div className="char-count">{hintText.length}/100</div>
+            <button 
+              onClick={handleSubmitHint}
+              disabled={!hintText.trim()}
+              className="btn btn-primary btn-large"
+            >
+              Submit Hint ✓
+            </button>
           </div>
         ) : (
-          <div className="vote-section">
-            <h2 className="vote-prompt">Cast Your Vote:</h2>
-            <div className="vote-options">
-              {players
-                .filter(p => p.id !== myId)
-                .map(player => (
-                  <button
-                    key={player.id}
-                    onClick={() => handleVote(player.id)}
-                    className="vote-button"
-                  >
-                    <span className="avatar">{player.avatar}</span>
-                    <span className="name">{player.name}</span>
-                  </button>
-                ))}
-            </div>
+          <div className="hint-submitted">
+            <div className="success-icon">✓</div>
+            <h3>Hint Submitted!</h3>
+            <p>Wait for others to submit...</p>
           </div>
         )}
       </div>
     )
   }
 
-  const renderReveal = () => {
-    const players = ws.gameState?.players || []
-    const oddPlayer = players.find(p => p.id === ws.gameState.oddPlayerId)
-    const myPlayer = players.find(p => p.id === ws.clientId)
+  // Vote phase
+  if (gameState === 'VOTE') {
+    const hints = ws.gameState.hints || []
+
+    if (isNavigator) {
+      return (
+        <div className="phone-vote-navigator">
+          <h1 className="phase-title">🧭 You're the Navigator!</h1>
+          <Timer endTime={ws.gameState.timerEndTime} />
+
+          <div className="waiting-message">
+            <p>Cluers are voting on the best hints...</p>
+            <p className="instruction">You'll see the winning hints next!</p>
+          </div>
+        </div>
+      )
+    }
+
+    // Cluer view
+    return (
+      <div className="phone-vote-cluer">
+        <h1 className="phase-title">🗳️ Vote for Best Hints</h1>
+        <Timer endTime={ws.gameState.timerEndTime} />
+
+        <p className="vote-instruction">
+          Select up to 2 hints that will best help the Navigator.
+          <br />
+          <small>(Hints are anonymous - you can't vote for your own)</small>
+        </p>
+
+        <div className="hints-list">
+          {hints.map((hint, index) => {
+            const isMyHint = hint.id === myPlayerId
+            const isSelected = selectedVotes.includes(hint.id)
+            const canSelect = !isMyHint && (isSelected || selectedVotes.length < 2)
+
+            return (
+              <div
+                key={hint.id}
+                className={`hint-vote-item ${isMyHint ? 'my-hint' : ''} ${isSelected ? 'selected' : ''} ${!canSelect ? 'disabled' : ''}`}
+                onClick={() => !isMyHint && canSelect && !hasSubmittedVote && handleToggleVote(hint.id)}
+              >
+                <span className="hint-number">#{index + 1}</span>
+                <span className="hint-text">{hint.text}</span>
+                {isMyHint && <span className="my-hint-badge">Your hint</span>}
+                {isSelected && <span className="vote-badge">✓</span>}
+              </div>
+            )
+          })}
+        </div>
+
+        {!hasSubmittedVote ? (
+          <button 
+            onClick={handleSubmitVote}
+            disabled={selectedVotes.length === 0}
+            className="btn btn-primary btn-large"
+          >
+            Submit Vote{selectedVotes.length > 0 ? ` (${selectedVotes.length})` : ''} ✓
+          </button>
+        ) : (
+          <div className="vote-submitted">
+            <div className="success-icon">✓</div>
+            <h3>Vote Submitted!</h3>
+            <p>Wait for others to vote...</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Placement phase
+  if (gameState === 'PLACE') {
+    const spectrum = ws.gameState.spectrum
+    const finalClues = ws.gameState.finalClues || []
+
+    if (!isNavigator) {
+      return (
+        <div className="phone-place-cluer">
+          <h1 className="phase-title">🎯 Navigator Placing</h1>
+          <Timer endTime={ws.gameState.timerEndTime} />
+
+          <div className="waiting-message">
+            <p>Wait for the Navigator to place the slider...</p>
+          </div>
+
+          <div className="final-clues-display">
+            <h3>Final Clues Shown to Navigator:</h3>
+            {finalClues.length === 0 ? (
+              <p className="no-clues">No clues! Navigator is guessing blind!</p>
+            ) : (
+              <div className="clues-list">
+                {finalClues.map((clue) => (
+                  <div key={clue.id} className="clue-item">
+                    <span className="clue-text">"{clue.text}"</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    // Navigator view
+    return (
+      <div className="phone-place-navigator">
+        <h1 className="phase-title">🎯 Place Your Guess</h1>
+        <Timer endTime={ws.gameState.timerEndTime} />
+
+        {spectrum && (
+          <div className="spectrum-info">
+            <div className="spectrum-labels">
+              <span className="left">{spectrum.left}</span>
+              <span className="divider">↔</span>
+              <span className="right">{spectrum.right}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="final-clues-display">
+          <h3>Your Clues:</h3>
+          {finalClues.length === 0 ? (
+            <p className="no-clues">No clues selected! Make your best guess!</p>
+          ) : (
+            <div className="clues-list">
+              {finalClues.map((clue) => (
+                <div key={clue.id} className="clue-item">
+                  <span className="clue-text">"{clue.text}"</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="placement-slider">
+          <h3>Place the slider: {placementValue}</h3>
+          <div className="slider-container">
+            <span className="slider-label">0</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={placementValue}
+              onChange={handlePlacementChange}
+              className="slider"
+            />
+            <span className="slider-label">100</span>
+          </div>
+          <div className="value-display">{placementValue}</div>
+        </div>
+
+        <button 
+          onClick={handleLockPlacement}
+          className="btn btn-primary btn-large"
+        >
+          Lock In Guess 🔒
+        </button>
+      </div>
+    )
+  }
+
+  // Reveal phase
+  if (gameState === 'REVEAL') {
+    const target = ws.gameState.target
+    const placement = ws.gameState.placement
+    const distance = ws.gameState.distance
+    const teamResult = ws.gameState.teamResult
+    const pointsPerPlayer = ws.gameState.pointsPerPlayer || {}
+    const myPoints = pointsPerPlayer[myPlayerId] || 0
+    const players = ws.gameState.players || []
+    const myPlayer = players.find(p => p.id === myPlayerId)
 
     return (
       <div className="phone-reveal">
-        <h1 className="reveal-title">🎭 Reveal!</h1>
-        
-        <div className="odd-reveal">
-          <p className="reveal-label">The Odd One Was:</p>
-          <div className="odd-player">
-            <span className="avatar-large">{oddPlayer?.avatar}</span>
-            <span className="name-large">{oddPlayer?.name}</span>
+        <h1 className="phase-title">🎉 Results!</h1>
+
+        <div className="result-summary">
+          <div className="result-values">
+            <div className="result-item">
+              <span className="label">🎯 Target:</span>
+              <span className="value">{target}</span>
+            </div>
+            <div className="result-item">
+              <span className="label">📍 Guess:</span>
+              <span className="value">{placement}</span>
+            </div>
+            <div className="result-item">
+              <span className="label">📏 Distance:</span>
+              <span className="value">{distance}</span>
+            </div>
           </div>
+          <h2 className={`result-${teamResult?.toLowerCase()}`}>{teamResult}!</h2>
         </div>
 
-        <div className="my-score">
-          <h3>Your Score</h3>
-          <p className="score">{myPlayer?.score} points</p>
-        </div>
-
-        <div className="mini-scoreboard">
-          {players
-            .sort((a, b) => b.score - a.score)
-            .map((player, i) => (
-              <div key={player.id} className="score-item">
-                <span className="rank">#{i + 1}</span>
-                <span className="avatar">{player.avatar}</span>
-                <span className="name">{player.name}</span>
-                <span className="score">{player.score}</span>
-              </div>
-            ))}
+        <div className="my-points">
+          <h3>You earned:</h3>
+          <div className={`points-display ${myPoints > 0 ? 'positive' : ''}`}>
+            +{myPoints} points
+          </div>
+          <div className="my-score">
+            <span className="avatar-large">{myPlayer?.avatar}</span>
+            <span className="name">{myPlayer?.name}</span>
+            <span className="score">{myPlayer?.score} pts total</span>
+          </div>
         </div>
       </div>
     )
   }
 
-  const renderGameOver = () => {
-    const winner = ws.gameState?.winner
-    const players = ws.gameState?.players || []
-    const myPlayer = players.find(p => p.id === ws.clientId)
+  // Game over
+  if (gameState === 'GAME_OVER') {
+    const leaderboard = ws.gameState.leaderboard || []
+    const winner = leaderboard[0]
+    const myPlayer = leaderboard.find(p => p.id === myPlayerId)
+    const myRank = leaderboard.findIndex(p => p.id === myPlayerId) + 1
 
     return (
       <div className="phone-game-over">
         <h1 className="game-over-title">🏆 Game Over!</h1>
-        
-        <div className="winner-section">
-          <p className="winner-label">Winner:</p>
-          <div className="winner">
-            <span className="avatar-large">{winner?.avatar}</span>
-            <span className="name-large">{winner?.name}</span>
-            <span className="score-large">{winner?.score} pts</span>
+
+        <div className="winner-display">
+          <h2>Winner:</h2>
+          <div className="winner-card">
+            <span className="avatar-huge">{winner?.avatar}</span>
+            <h3>{winner?.name}</h3>
+            <p className="score">{winner?.score} points</p>
           </div>
         </div>
 
-        <div className="my-final-score">
-          <h3>You Finished With</h3>
-          <p className="score-large">{myPlayer?.score} points</p>
+        <div className="my-result">
+          <h3>Your Result:</h3>
+          <div className="my-rank">
+            <span className="rank-number">#{myRank}</span>
+            <span className="avatar-large">{myPlayer?.avatar}</span>
+            <span className="name">{myPlayer?.name}</span>
+            <span className="score">{myPlayer?.score} pts</span>
+          </div>
         </div>
 
-        <button onClick={() => window.location.href = '/'} className="btn btn-primary btn-large">
-          🏠 Back to Home
+        <div className="leaderboard">
+          <h3>Final Standings:</h3>
+          {leaderboard.map((player, index) => (
+            <div key={player.id} className={`leaderboard-item ${player.id === myPlayerId ? 'me' : ''}`}>
+              <span className="rank">#{index + 1}</span>
+              <span className="avatar">{player.avatar}</span>
+              <span className="name">{player.name}</span>
+              <span className="score">{player.score} pts</span>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={() => window.location.reload()} className="btn btn-primary btn-large">
+          🔄 Play Again
         </button>
       </div>
     )
   }
 
   return (
-    <div className="phone-controller">
-      {ws.gameState.state === 'LOBBY' && renderLobby()}
-      {ws.gameState.state === 'PLAYING' && renderPlaying()}
-      {ws.gameState.state === 'VOTING' && renderVoting()}
-      {ws.gameState.state === 'REVEAL' && renderReveal()}
-      {ws.gameState.state === 'GAME_OVER' && renderGameOver()}
+    <div className="phone-waiting">
+      <div className="spinner"></div>
+      <p>Waiting...</p>
+    </div>
+  )
+}
+
+function Timer({ endTime }) {
+  const [timeLeft, setTimeLeft] = useState(0)
+
+  useEffect(() => {
+    if (!endTime) return
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000))
+      setTimeLeft(remaining)
+      
+      if (remaining === 0) {
+        clearInterval(interval)
+      }
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [endTime])
+
+  return (
+    <div className={`timer ${timeLeft < 10 ? 'timer-warning' : ''}`}>
+      ⏱️ {timeLeft}s
     </div>
   )
 }

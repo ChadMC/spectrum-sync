@@ -14,6 +14,7 @@ function TVDisplay({ gameId: initialGameId }) {
     if (ws.connected && !gameId) {
       ws.createGame()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws.connected, gameId])
 
   useEffect(() => {
@@ -36,27 +37,32 @@ function TVDisplay({ gameId: initialGameId }) {
         .then(data => setPacks(data))
         .catch(err => console.error('Failed to fetch packs:', err))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId])
 
   const handleStartRound = () => {
     ws.startRound(gameId)
   }
 
-  const handleKickPlayer = (playerId) => {
-    ws.kickPlayer(gameId, playerId)
+  const handleCompleteHintPhase = () => {
+    ws.completeHintPhase(gameId)
   }
 
-  const handleMutePlayer = (playerId) => {
-    ws.mutePlayer(gameId, playerId)
+  const handleCompleteVotePhase = () => {
+    ws.completeVotePhase(gameId)
   }
 
-  const handleToggleStreamer = () => {
-    ws.toggleStreamerMode(gameId)
+  const handleToggleKidsMode = () => {
+    ws.toggleKidsMode(gameId)
   }
 
   const handlePackChange = (pack) => {
     setSelectedPack(pack)
-    ws.setQuestionPack(gameId, pack)
+    ws.setSpectrumPack(gameId, pack)
+  }
+
+  const handleAddTime = () => {
+    ws.addTime(gameId)
   }
 
   const renderLobby = () => {
@@ -67,7 +73,7 @@ function TVDisplay({ gameId: initialGameId }) {
     return (
       <div className="tv-lobby">
         <div className="lobby-header">
-          <h1 className="tv-title">🎯 Odd Ball Out</h1>
+          <h1 className="tv-title">🧭 Spectrum Sync</h1>
           <div className="game-code">
             Game Code: <span className="code">{gameId}</span>
           </div>
@@ -92,31 +98,14 @@ function TVDisplay({ gameId: initialGameId }) {
                   <span className="player-avatar">{player.avatar}</span>
                   <span className="player-name">{player.name}</span>
                   {player.isHost && <span className="host-badge">👑</span>}
-                  {!player.isHost && (
-                    <div className="player-actions">
-                      <button 
-                        onClick={() => handleMutePlayer(player.id)}
-                        className="btn-icon"
-                        title={player.isMuted ? "Unmute" : "Mute"}
-                      >
-                        {player.isMuted ? '🔇' : '🔊'}
-                      </button>
-                      <button 
-                        onClick={() => handleKickPlayer(player.id)}
-                        className="btn-icon"
-                        title="Kick"
-                      >
-                        ❌
-                      </button>
-                    </div>
-                  )}
+                  <span className="player-score">{player.score} pts</span>
                 </div>
               ))}
             </div>
 
             <div className="lobby-controls">
               <div className="pack-selector">
-                <label>Question Pack:</label>
+                <label>Spectrum Pack:</label>
                 <select value={selectedPack} onChange={(e) => handlePackChange(e.target.value)}>
                   {packs.map(pack => (
                     <option key={pack} value={pack}>{pack}</option>
@@ -125,10 +114,10 @@ function TVDisplay({ gameId: initialGameId }) {
               </div>
               
               <button 
-                onClick={handleToggleStreamer}
+                onClick={handleToggleKidsMode}
                 className="btn btn-secondary"
               >
-                {ws.gameState?.streamerMode ? '👁️ Streamer Mode ON' : '👁️‍🗨️ Streamer Mode OFF'}
+                {ws.gameState?.kidsMode ? '👶 Kids Mode ON' : '👶 Kids Mode OFF'}
               </button>
 
               <button 
@@ -145,171 +134,304 @@ function TVDisplay({ gameId: initialGameId }) {
     )
   }
 
-  const renderPlaying = () => {
-    const prompt = ws.gameState?.currentPrompt
-    const players = ws.gameState?.players || []
-    const answeredCount = ws.submissionStatus?.type === 'ANSWER_SUBMITTED' ? ws.submissionStatus.answered : 0
-    const totalCount = ws.submissionStatus?.total || players.length
+  const renderRoundStart = () => {
+    const spectrum = ws.gameState?.spectrum
+    const navigator = ws.gameState?.players?.find(p => p.id === ws.gameState.navigatorId)
 
     return (
-      <div className="tv-playing">
-        <div className="round-header">
+      <div className="tv-round-start">
+        <h1 className="phase-title">🧭 New Round!</h1>
+        <div className="round-info">
           <h2>Round {ws.gameState.currentRound}/{ws.gameState.maxRounds}</h2>
-          <Timer endTime={ws.gameState.timerEndTime} />
         </div>
 
-        <div className="prompt-display">
-          <h1 className="prompt-question">{prompt?.question}</h1>
-          {prompt?.type === 'multiple_choice' && (
-            <div className="prompt-options">
-              {prompt.options.map((option, i) => (
-                <div key={i} className="option">{option}</div>
-              ))}
+        {spectrum && (
+          <div className="spectrum-display">
+            <div className="spectrum-bar">
+              <span className="spectrum-left">{spectrum.left}</span>
+              <div className="spectrum-line"></div>
+              <span className="spectrum-right">{spectrum.right}</span>
             </div>
-          )}
-          {prompt?.type === 'emoji' && (
-            <div className="emoji-options">
-              {prompt.options.map((emoji, i) => (
-                <span key={i} className="emoji-option">{emoji}</span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="submission-status">
-          <h3>Answers Submitted: {answeredCount}/{totalCount}</h3>
-          <div className="progress-bar">
-            <div 
-              className="progress-fill" 
-              style={{ width: `${(answeredCount / totalCount) * 100}%` }}
-            />
           </div>
-        </div>
+        )}
 
-        <div className="players-status">
-          {players.map(player => (
-            <div key={player.id} className="player-status">
-              <span className="avatar">{player.avatar}</span>
-              <span className="name">{player.name}</span>
-            </div>
-          ))}
+        <div className="navigator-announcement">
+          <h3>Navigator this round:</h3>
+          <div className="navigator-display">
+            <span className="avatar-large">{navigator?.avatar}</span>
+            <span className="name-large">{navigator?.name}</span>
+          </div>
         </div>
       </div>
     )
   }
 
-  const renderVoting = () => {
-    const players = ws.gameState?.players || []
-    const votedCount = ws.submissionStatus?.type === 'VOTE_SUBMITTED' ? ws.submissionStatus.answered : 0
-    const totalCount = ws.submissionStatus?.total || players.length
-    const allPrompts = ws.gameState?.allPrompts || []
-    const answers = ws.gameState?.answers || {}
+  const renderHintPhase = () => {
+    const spectrum = ws.gameState?.spectrum
+    const hintsSubmitted = ws.submissionStatus?.answered || 0
+    const totalCluers = ws.submissionStatus?.total || (ws.gameState?.players?.length - 1)
 
     return (
-      <div className="tv-voting">
-        <h1 className="voting-title">🗳️ Who is the Odd One Out?</h1>
-        <Timer endTime={ws.gameState.timerEndTime} />
-        
-        <div className="voting-instructions">
-          <p>Review the answers and vote on your phone!</p>
+      <div className="tv-hint-phase">
+        <div className="round-header">
+          <h2>Round {ws.gameState.currentRound}/{ws.gameState.maxRounds}</h2>
+          <Timer endTime={ws.gameState.timerEndTime} />
         </div>
 
-        <div className="answers-review">
-          {allPrompts.map((prompt, idx) => (
-            <div key={idx} className="prompt-answer-section">
-              <h3 className="question-text">Q{idx + 1}: {prompt.question}</h3>
-              <div className="player-answers">
-                {players.map(player => {
-                  const answer = answers[idx]?.[player.id] || '(no answer)'
-                  return (
-                    <div key={player.id} className="player-answer-item">
-                      <span className="player-avatar">{player.avatar}</span>
-                      <span className="player-name">{player.name}</span>
-                      <span className="player-answer">{answer}</span>
-                    </div>
-                  )
-                })}
+        <h1 className="phase-title">💡 Cluers Submitting Hints</h1>
+
+        {spectrum && (
+          <div className="spectrum-display">
+            <div className="spectrum-bar">
+              <span className="spectrum-left">{spectrum.left}</span>
+              <div className="spectrum-line">
+                <div className="spectrum-ticks">
+                  <span className="tick">0</span>
+                  <span className="tick">25</span>
+                  <span className="tick">50</span>
+                  <span className="tick">75</span>
+                  <span className="tick">100</span>
+                </div>
               </div>
+              <span className="spectrum-right">{spectrum.right}</span>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
         <div className="submission-status">
-          <h3>Votes Cast: {votedCount}/{totalCount}</h3>
+          <h3>Hints Submitted: {hintsSubmitted}/{totalCluers}</h3>
           <div className="progress-bar">
             <div 
               className="progress-fill" 
-              style={{ width: `${(votedCount / totalCount) * 100}%` }}
+              style={{ width: `${(hintsSubmitted / totalCluers) * 100}%` }}
             />
           </div>
+        </div>
+
+        <div className="host-controls">
+          <button onClick={handleAddTime} className="btn btn-secondary">
+            ⏱️ +10s
+          </button>
+          <button onClick={handleCompleteHintPhase} className="btn btn-primary">
+            ▶️ Continue to Voting
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const renderVotePhase = () => {
+    const hints = ws.gameState?.hints || []
+    const votesSubmitted = ws.submissionStatus?.answered || 0
+    const totalVoters = ws.submissionStatus?.total || (ws.gameState?.players?.length - 1)
+
+    return (
+      <div className="tv-vote-phase">
+        <div className="round-header">
+          <h2>Round {ws.gameState.currentRound}/{ws.gameState.maxRounds}</h2>
+          <Timer endTime={ws.gameState.timerEndTime} />
+        </div>
+
+        <h1 className="phase-title">🗳️ Cluers Voting on Hints</h1>
+
+        <div className="hints-display">
+          <h3>Anonymous Hints:</h3>
+          <div className="hints-list">
+            {hints.map((hint, index) => (
+              <div key={hint.id} className="hint-item">
+                <span className="hint-number">#{index + 1}</span>
+                <span className="hint-text">{hint.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="submission-status">
+          <h3>Votes Cast: {votesSubmitted}/{totalVoters}</h3>
+          <div className="progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{ width: `${(votesSubmitted / totalVoters) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="host-controls">
+          <button onClick={handleAddTime} className="btn btn-secondary">
+            ⏱️ +10s
+          </button>
+          <button onClick={handleCompleteVotePhase} className="btn btn-primary">
+            ▶️ Continue to Placement
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const renderPlacePhase = () => {
+    const spectrum = ws.gameState?.spectrum
+    const finalClues = ws.gameState?.finalClues || []
+    const navigator = ws.gameState?.players?.find(p => p.id === ws.gameState.navigatorId)
+
+    return (
+      <div className="tv-place-phase">
+        <div className="round-header">
+          <h2>Round {ws.gameState.currentRound}/{ws.gameState.maxRounds}</h2>
+          <Timer endTime={ws.gameState.timerEndTime} />
+        </div>
+
+        <h1 className="phase-title">🎯 Navigator Placing</h1>
+
+        <div className="navigator-info">
+          <span className="avatar-medium">{navigator?.avatar}</span>
+          <span className="name-medium">{navigator?.name}</span>
+          <span className="label">is placing the slider</span>
+        </div>
+
+        {spectrum && (
+          <div className="spectrum-display">
+            <div className="spectrum-bar">
+              <span className="spectrum-left">{spectrum.left}</span>
+              <div className="spectrum-line">
+                <div className="spectrum-ticks">
+                  <span className="tick">0</span>
+                  <span className="tick">25</span>
+                  <span className="tick">50</span>
+                  <span className="tick">75</span>
+                  <span className="tick">100</span>
+                </div>
+              </div>
+              <span className="spectrum-right">{spectrum.right}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="final-clues-display">
+          <h3>Final Clues:</h3>
+          <div className="final-clues-list">
+            {finalClues.length === 0 ? (
+              <p className="no-clues">No clues selected! Navigator must guess blind.</p>
+            ) : (
+              finalClues.map((clue) => (
+                <div key={clue.id} className="final-clue-item">
+                  <span className="clue-text">"{clue.text}"</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="host-controls">
+          <button onClick={handleAddTime} className="btn btn-secondary">
+            ⏱️ +10s
+          </button>
         </div>
       </div>
     )
   }
 
   const renderReveal = () => {
+    const spectrum = ws.gameState?.spectrum
+    const target = ws.gameState?.target
+    const placement = ws.gameState?.placement
+    const distance = ws.gameState?.distance
+    const teamResult = ws.gameState?.teamResult
+    const pointsPerPlayer = ws.gameState?.pointsPerPlayer || {}
+    const finalClueAuthors = ws.gameState?.finalClueAuthors || []
     const players = ws.gameState?.players || []
-    const oddPlayer = players.find(p => p.id === ws.gameState.oddPlayerId)
-    const votes = ws.gameState?.votes || {}
-    
-    // Check if round is complete (not game over)
-    const lastMessage = ws.messages[ws.messages.length - 1]
-    const isRoundComplete = lastMessage?.type === 'ROUND_COMPLETE'
 
     return (
       <div className="tv-reveal">
-        <h1 className="reveal-title">🎭 The Odd One Was...</h1>
-        
-        <div className="odd-player-reveal">
-          <span className="avatar-huge">{oddPlayer?.avatar}</span>
-          <h2 className="name-huge">{oddPlayer?.name}</h2>
-        </div>
+        <h1 className="phase-title">🎉 Results!</h1>
 
-        <div className="vote-results">
-          <h3>Vote Results:</h3>
-          {players.map(player => {
-            const voteCount = Object.values(votes).filter(v => v === player.id).length
-            return (
-              <div key={player.id} className="vote-result">
-                <span className="avatar">{player.avatar}</span>
-                <span className="name">{player.name}</span>
-                <span className="votes">{'⭐'.repeat(voteCount)}</span>
+        {spectrum && (
+          <div className="spectrum-display">
+            <div className="spectrum-bar">
+              <span className="spectrum-left">{spectrum.left}</span>
+              <div className="spectrum-line">
+                <div className="spectrum-ticks">
+                  <span className="tick">0</span>
+                  <span className="tick">25</span>
+                  <span className="tick">50</span>
+                  <span className="tick">75</span>
+                  <span className="tick">100</span>
+                </div>
+                {target !== null && (
+                  <div className="target-marker" style={{ left: `${target}%` }}>
+                    <div className="marker-label">🎯 Target: {target}</div>
+                  </div>
+                )}
+                {placement !== null && (
+                  <div className="placement-marker" style={{ left: `${placement}%` }}>
+                    <div className="marker-label">📍 Guess: {placement}</div>
+                  </div>
+                )}
               </div>
-            )
-          })}
-        </div>
-
-        <Scoreboard players={players} />
-        
-        {isRoundComplete && (
-          <div className="round-complete-controls">
-            <button 
-              onClick={handleStartRound}
-              className="btn btn-primary btn-large"
-            >
-              ▶️ Start Next Round
-            </button>
+              <span className="spectrum-right">{spectrum.right}</span>
+            </div>
           </div>
         )}
+
+        <div className="result-summary">
+          <h2 className={`result-${teamResult?.toLowerCase()}`}>
+            Distance: {distance} → {teamResult}!
+          </h2>
+        </div>
+
+        <div className="points-awarded">
+          <h3>Points Awarded:</h3>
+          <div className="points-list">
+            {players.map(player => {
+              const points = pointsPerPlayer[player.id] || 0
+              return (
+                <div key={player.id} className="points-item">
+                  <span className="avatar">{player.avatar}</span>
+                  <span className="name">{player.name}</span>
+                  <span className={`points ${points > 0 ? 'positive' : ''}`}>
+                    +{points}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {finalClueAuthors.length > 0 && (
+          <div className="clue-authors">
+            <h3>Final Clue Authors:</h3>
+            <div className="authors-list">
+              {finalClueAuthors.map(author => (
+                <div key={author.hintId} className="author-item">
+                  <span className="avatar">{author.avatar}</span>
+                  <span className="name">{author.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <Scoreboard players={players} />
       </div>
     )
   }
 
   const renderGameOver = () => {
-    const winner = ws.gameState?.winner
-    const players = ws.gameState?.players || []
+    const leaderboard = ws.gameState?.leaderboard || []
+    const winner = leaderboard[0]
 
     return (
       <div className="tv-game-over">
         <h1 className="game-over-title">🏆 Game Over!</h1>
         
-        <div className="winner-display">
-          <span className="avatar-huge">{winner?.avatar}</span>
-          <h2 className="name-huge">{winner?.name}</h2>
-          <p className="winner-score">{winner?.score} points</p>
-        </div>
+        {winner && (
+          <div className="winner-display">
+            <span className="avatar-huge">{winner.avatar}</span>
+            <h2 className="name-huge">{winner.name}</h2>
+            <p className="winner-score">{winner.score} points</p>
+          </div>
+        )}
 
-        <Scoreboard players={players} />
+        <Scoreboard players={leaderboard} />
         
         <button onClick={() => window.location.reload()} className="btn btn-primary btn-large">
           🔄 Play Again
@@ -339,8 +461,10 @@ function TVDisplay({ gameId: initialGameId }) {
   return (
     <div className="tv-display">
       {ws.gameState.state === 'LOBBY' && renderLobby()}
-      {ws.gameState.state === 'PLAYING' && renderPlaying()}
-      {ws.gameState.state === 'VOTING' && renderVoting()}
+      {ws.gameState.state === 'ROUND_START' && renderRoundStart()}
+      {ws.gameState.state === 'HINT' && renderHintPhase()}
+      {ws.gameState.state === 'VOTE' && renderVotePhase()}
+      {ws.gameState.state === 'PLACE' && renderPlacePhase()}
       {ws.gameState.state === 'REVEAL' && renderReveal()}
       {ws.gameState.state === 'GAME_OVER' && renderGameOver()}
     </div>
