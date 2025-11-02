@@ -502,10 +502,13 @@ wss.on('connection', (ws) => {
       const player = game.players.get(clientId);
       if (player) {
         player.connected = false;
-        broadcastToGame(game.id, {
-          type: 'ROOM_STATE',
-          state: game.getGameState()
-        });
+        // Send player-specific game states to ensure cluers get target value
+        for (const [pId] of game.players) {
+          sendToPlayer(pId, {
+            type: 'ROOM_STATE',
+            state: game.getGameState(pId)
+          });
+        }
       }
     }
   });
@@ -556,10 +559,13 @@ function handleMessage(clientId, ws, message) {
         reconnectToken: token
       }));
 
-      broadcastToGame(joinGame.id, {
-        type: 'ROOM_STATE',
-        state: joinGame.getGameState()
-      });
+      // Send player-specific game states to ensure cluers get target value
+      for (const [pId] of joinGame.players) {
+        sendToPlayer(pId, {
+          type: 'ROOM_STATE',
+          state: joinGame.getGameState(pId)
+        });
+      }
       break;
 
     case 'RECONNECT':
@@ -576,10 +582,13 @@ function handleMessage(clientId, ws, message) {
             playerId: playerId
           }));
 
-          broadcastToGame(game.id, {
-            type: 'ROOM_STATE',
-            state: game.getGameState()
-          });
+          // Send player-specific game states to ensure cluers get target value
+          for (const [pId] of game.players) {
+            sendToPlayer(pId, {
+              type: 'ROOM_STATE',
+              state: game.getGameState(pId)
+            });
+          }
           return;
         }
       }
