@@ -5,7 +5,7 @@ import cors from 'cors';
 import QRCode from 'qrcode';
 import { Filter } from 'bad-words';
 import { v4 as uuidv4 } from 'uuid';
-import { questionPacks } from './questionPacks.js';
+import { spectrumPacks } from './spectrumPacks.js';
 
 const app = express();
 const server = createServer(app);
@@ -17,6 +17,19 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
 
+// Game configuration
+const WIN_SCORE = 15;
+const MAX_ROUNDS = 6;
+const PHASE_SECONDS = {
+  SPECTRUM_REVEAL: 3,
+  HINT: 35,
+  VOTE: 10,
+  PLACE: 20,
+  REVEAL: 8,
+  BUFFER: 5
+};
+const KIDS_MODE_TIME_BONUS = 5;
+
 // Game state
 const games = new Map();
 const playerConnections = new Map();
@@ -27,25 +40,45 @@ const AVATARS = [
   '🦁', '🐮', '🐷', '🐸', '🐵', '🦄', '🦋', '🐝', '🐛', '🦀'
 ];
 
+// Text normalization for duplicate detection
+function normalizeText(text) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\s\p{Emoji}]/gu, '')
+    .replace(/(.)\1+/g, '$1') // collapse repeated characters
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // remove diacritics
+}
+
+// Check if text contains banned words
+function containsBannedWords(text, bannedWords) {
+  const normalized = normalizeText(text);
+  return bannedWords.some(word => normalized.includes(word.toLowerCase()));
+}
+
 class Game {
   constructor(hostId) {
     this.id = uuidv4().substring(0, 6).toUpperCase();
     this.hostId = hostId;
     this.players = new Map();
-    this.state = 'LOBBY'; // LOBBY, PLAYING, VOTING, REVEAL, GAME_OVER
+    this.state = 'LOBBY'; // LOBBY, ROUND_START, HINT, VOTE, PLACE, REVEAL, GAME_OVER
     this.currentRound = 0;
-    this.maxRounds = 6;
-    this.winScore = 15;
-    this.oddPlayerId = null;
-    this.currentPromptIndex = 0;
-    this.prompts = [];
-    this.answers = new Map();
-    this.votes = new Map();
+    this.maxRounds = MAX_ROUNDS;
+    this.winScore = WIN_SCORE;
+    this.navigatorId = null;
+    this.currentSpectrum = null;
+    this.target = null;
+    this.hints = new Map(); // playerId -> { text, normalized, canceled, resubmitted }
+    this.votes = new Map(); // playerId -> [hintId1, hintId2]
+    this.placement = null;
     this.timer = null;
     this.timerEndTime = null;
-    this.streamerMode = false;
-    this.questionPack = 'default';
+    this.kidsMode = false;
+    this.duplicateMode = 'exact';
+    this.spectrumPack = 'default';
     this.reconnectTokens = new Map();
+    this.usedSpectrums = [];
   }
 
   addPlayer(playerId, name, avatar) {
@@ -58,10 +91,9 @@ class Game {
       avatar,
       score: 0,
       isHost: playerId === this.hostId,
-      isMuted: false,
-      isKicked: false,
-      reconnectToken: token,
-      connected: true
+      ready: false,
+      connected: true,
+      reconnectToken: token
     });
     
     return token;
@@ -75,89 +107,245 @@ class Game {
     if (this.players.size < 3) return false;
     
     this.currentRound++;
-    this.state = 'PLAYING';
-    this.currentPromptIndex = 0;
-    this.answers.clear();
+    this.state = 'ROUND_START';
+    this.hints.clear();
     this.votes.clear();
+    this.placement = null;
     
-    // Select random odd player
+    // Rotate navigator
     const playerIds = Array.from(this.players.keys());
-    this.oddPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
-    
-    // Select random prompts
-    const pack = questionPacks[this.questionPack] || questionPacks.default;
-    const shuffled = [...pack].sort(() => Math.random() - 0.5);
-    this.prompts = shuffled.slice(0, 3);
-    
-    return true;
-  }
-
-  submitAnswer(playerId, answer) {
-    if (this.state !== 'PLAYING') return false;
-    
-    if (!this.answers.has(this.currentPromptIndex)) {
-      this.answers.set(this.currentPromptIndex, new Map());
+    if (this.navigatorId) {
+      const currentIndex = playerIds.indexOf(this.navigatorId);
+      this.navigatorId = playerIds[(currentIndex + 1) % playerIds.length];
+    } else {
+      this.navigatorId = playerIds[0];
     }
     
-    const promptAnswers = this.answers.get(this.currentPromptIndex);
-    promptAnswers.set(playerId, filter.clean(answer));
+    // Select random spectrum (avoid recent repeats)
+    const pack = spectrumPacks[this.spectrumPack] || spectrumPacks.default;
+    const availableSpectrums = pack.filter(s => !this.usedSpectrums.includes(s.id));
+    const spectrums = availableSpectrums.length > 0 ? availableSpectrums : pack;
+    this.currentSpectrum = spectrums[Math.floor(Math.random() * spectrums.length)];
+    this.usedSpectrums.push(this.currentSpectrum.id);
+    if (this.usedSpectrums.length > 5) this.usedSpectrums.shift();
+    
+    // Generate random target (0-100)
+    this.target = Math.floor(Math.random() * 101);
     
     return true;
   }
 
-  nextPrompt() {
-    this.currentPromptIndex++;
-    if (this.currentPromptIndex >= this.prompts.length) {
-      this.state = 'VOTING';
-      return false;
+  submitHint(playerId, text) {
+    if (this.state !== 'HINT') return { success: false, reason: 'Invalid state' };
+    if (playerId === this.navigatorId) return { success: false, reason: 'Navigator cannot submit hints' };
+    
+    const player = this.players.get(playerId);
+    if (!player) return { success: false, reason: 'Player not found' };
+    
+    // Check profanity
+    if (filter.isProfane(text)) {
+      return { success: false, reason: 'Profanity detected' };
     }
-    return true;
+    
+    // Check banned words
+    if (containsBannedWords(text, this.currentSpectrum.banned)) {
+      return { success: false, reason: 'Contains banned words' };
+    }
+    
+    const normalized = normalizeText(text);
+    const existingHint = this.hints.get(playerId);
+    
+    // Check if this is a resubmission after cancellation
+    if (existingHint && existingHint.canceled && existingHint.resubmitted) {
+      return { success: false, reason: 'Already resubmitted' };
+    }
+    
+    this.hints.set(playerId, {
+      id: playerId,
+      text: text.trim(),
+      normalized,
+      canceled: false,
+      resubmitted: existingHint?.canceled || false
+    });
+    
+    return { success: true };
   }
 
-  submitVote(playerId, votedForId) {
-    if (this.state !== 'VOTING') return false;
-    this.votes.set(playerId, votedForId);
-    return true;
+  processDuplicates() {
+    const normalizedMap = new Map(); // normalized -> [playerIds]
+    
+    for (const [playerId, hint] of this.hints.entries()) {
+      if (!hint.canceled) {
+        const existing = normalizedMap.get(hint.normalized) || [];
+        existing.push(playerId);
+        normalizedMap.set(hint.normalized, existing);
+      }
+    }
+    
+    // Mark duplicates as canceled
+    const canceledPlayers = [];
+    for (const [normalized, playerIds] of normalizedMap.entries()) {
+      if (playerIds.length > 1) {
+        for (const playerId of playerIds) {
+          const hint = this.hints.get(playerId);
+          if (!hint.resubmitted) {
+            hint.canceled = true;
+            canceledPlayers.push(playerId);
+          }
+        }
+      }
+    }
+    
+    return canceledPlayers;
+  }
+
+  getActiveHints() {
+    const activeHints = [];
+    for (const [playerId, hint] of this.hints.entries()) {
+      if (!hint.canceled) {
+        activeHints.push({ id: hint.id, text: hint.text });
+      }
+    }
+    return activeHints;
+  }
+
+  submitVote(playerId, hintIds) {
+    if (this.state !== 'VOTE') return { success: false, reason: 'Invalid state' };
+    if (playerId === this.navigatorId) return { success: false, reason: 'Navigator cannot vote' };
+    
+    // Validate hintIds
+    if (!Array.isArray(hintIds) || hintIds.length > 2) {
+      return { success: false, reason: 'Can vote for max 2 hints' };
+    }
+    
+    // Check for self-vote
+    if (hintIds.includes(playerId)) {
+      return { success: false, reason: 'Cannot vote for own hint' };
+    }
+    
+    // Validate hint IDs exist and are not canceled
+    for (const hintId of hintIds) {
+      const hint = this.hints.get(hintId);
+      if (!hint || hint.canceled) {
+        return { success: false, reason: 'Invalid hint ID' };
+      }
+    }
+    
+    this.votes.set(playerId, hintIds);
+    return { success: true };
+  }
+
+  calculateFinalClues() {
+    const voteCounts = new Map();
+    const activeHints = this.getActiveHints();
+    
+    // Count votes
+    for (const hintIds of this.votes.values()) {
+      for (const hintId of hintIds) {
+        voteCounts.set(hintId, (voteCounts.get(hintId) || 0) + 1);
+      }
+    }
+    
+    // If no votes or no hints, return empty
+    if (voteCounts.size === 0 || activeHints.length === 0) {
+      return [];
+    }
+    
+    // Find max vote count
+    const maxVotes = Math.max(...voteCounts.values());
+    
+    // Return all hints tied for first place
+    const finalClueIds = [];
+    for (const [hintId, count] of voteCounts.entries()) {
+      if (count === maxVotes) {
+        finalClueIds.push(hintId);
+      }
+    }
+    
+    return finalClueIds;
+  }
+
+  submitPlacement(playerId, value) {
+    if (this.state !== 'PLACE') return { success: false, reason: 'Invalid state' };
+    if (playerId !== this.navigatorId) return { success: false, reason: 'Only Navigator can place' };
+    if (value < 0 || value > 100) return { success: false, reason: 'Invalid value' };
+    
+    this.placement = Math.round(value);
+    return { success: true };
   }
 
   calculateScores() {
-    const voteCounts = new Map();
+    if (this.placement === null) return {};
     
-    // Count votes
-    for (const votedForId of this.votes.values()) {
-      voteCounts.set(votedForId, (voteCounts.get(votedForId) || 0) + 1);
+    const distance = Math.abs(this.placement - this.target);
+    const pointsPerPlayer = {};
+    
+    // Initialize all players to 0
+    for (const playerId of this.players.keys()) {
+      pointsPerPlayer[playerId] = 0;
     }
     
-    const mostVotedId = Array.from(voteCounts.entries())
-      .sort((a, b) => b[1] - a[1])[0]?.[0];
+    // Team Proximity (everyone)
+    let teamPoints = 0;
+    if (distance <= 3) {
+      teamPoints = 3; // Bullseye
+    } else if (distance <= 10) {
+      teamPoints = 2; // Close
+    } else if (distance <= 24) {
+      teamPoints = 1; // Decent
+    }
     
-    // Award points
-    if (mostVotedId === this.oddPlayerId) {
-      // Odd player was caught - voters get +2
-      for (const [voterId, votedForId] of this.votes.entries()) {
-        if (votedForId === this.oddPlayerId) {
-          const player = this.players.get(voterId);
-          if (player) player.score += 2;
+    for (const playerId of this.players.keys()) {
+      pointsPerPlayer[playerId] += teamPoints;
+    }
+    
+    // Navigator Bonus
+    if (distance <= 3) {
+      pointsPerPlayer[this.navigatorId] += 2; // Bullseye bonus
+    } else if (distance <= 10) {
+      pointsPerPlayer[this.navigatorId] += 1; // Close bonus
+    }
+    
+    // Assist (authors of Final Clues)
+    const finalClueIds = this.calculateFinalClues();
+    if (distance <= 24 && finalClueIds.length > 0) { // Decent or better
+      for (const clueId of finalClueIds) {
+        if (distance <= 3) {
+          pointsPerPlayer[clueId] += 2; // Bullseye
+        } else {
+          pointsPerPlayer[clueId] += 1; // Decent or Close
         }
       }
-    } else {
-      // Odd player was not caught - gets +3
-      const oddPlayer = this.players.get(this.oddPlayerId);
-      if (oddPlayer) oddPlayer.score += 3;
     }
     
-    // Odd player bonus guess (+2 if they guessed the secret correctly)
-    // For simplicity, award +2 to odd player in 50% of cases
-    if (Math.random() > 0.5) {
-      const oddPlayer = this.players.get(this.oddPlayerId);
-      if (oddPlayer) oddPlayer.score += 2;
+    // Voter Insight (voters who approved at least one Final Clue)
+    if (distance <= 10) { // Close or Bullseye
+      for (const [voterId, votedIds] of this.votes.entries()) {
+        const approvedFinalClue = votedIds.some(id => finalClueIds.includes(id));
+        if (approvedFinalClue) {
+          pointsPerPlayer[voterId] += 1;
+        }
+      }
     }
     
-    this.state = 'REVEAL';
+    // Apply points to players
+    for (const [playerId, points] of Object.entries(pointsPerPlayer)) {
+      const player = this.players.get(playerId);
+      if (player) {
+        player.score += points;
+      }
+    }
+    
+    return {
+      distance,
+      pointsPerPlayer,
+      finalClueIds,
+      teamResult: distance <= 3 ? 'Bullseye' : distance <= 10 ? 'Close' : distance <= 24 ? 'Decent' : 'Off'
+    };
   }
 
   checkWinCondition() {
-    // Check if someone reached 15 points
+    // Check if someone reached WIN_SCORE
     for (const player of this.players.values()) {
       if (player.score >= this.winScore) {
         this.state = 'GAME_OVER';
@@ -165,7 +353,7 @@ class Game {
       }
     }
     
-    // Check if 6 rounds completed
+    // Check if MAX_ROUNDS completed
     if (this.currentRound >= this.maxRounds) {
       this.state = 'GAME_OVER';
       return true;
@@ -174,24 +362,10 @@ class Game {
     return false;
   }
 
-  getWinner() {
+  getLeaderboard() {
     return Array.from(this.players.values())
-      .sort((a, b) => b.score - a.score)[0];
-  }
-
-  kickPlayer(playerId) {
-    const player = this.players.get(playerId);
-    if (player) {
-      player.isKicked = true;
-      player.connected = false;
-    }
-  }
-
-  mutePlayer(playerId) {
-    const player = this.players.get(playerId);
-    if (player) {
-      player.isMuted = !player.isMuted;
-    }
+      .map(p => ({ id: p.id, name: p.name, avatar: p.avatar, score: p.score }))
+      .sort((a, b) => b.score - a.score);
   }
 
   reconnectPlayer(token) {
@@ -199,7 +373,7 @@ class Game {
     if (!playerId) return null;
     
     const player = this.players.get(playerId);
-    if (player && !player.isKicked) {
+    if (player) {
       player.connected = true;
       return playerId;
     }
@@ -211,57 +385,86 @@ class Game {
     this.timerEndTime = Date.now() + (seconds * 1000);
   }
 
+  getTimeBonus() {
+    return this.kidsMode ? KIDS_MODE_TIME_BONUS : 0;
+  }
+
   getGameState(forPlayerId = null) {
     const state = {
       id: this.id,
       state: this.state,
       currentRound: this.currentRound,
       maxRounds: this.maxRounds,
+      winScore: this.winScore,
       players: Array.from(this.players.values()).map(p => ({
-        id: this.streamerMode && !p.isHost ? '***' : p.id,
-        name: this.streamerMode && !p.isHost ? '***' : p.name,
+        id: p.id,
+        name: p.name,
         avatar: p.avatar,
         score: p.score,
         isHost: p.isHost,
-        isMuted: p.isMuted,
+        ready: p.ready,
         connected: p.connected
       })),
-      streamerMode: this.streamerMode,
+      navigatorId: this.navigatorId,
+      kidsMode: this.kidsMode,
       timerEndTime: this.timerEndTime
     };
 
-    if (this.state === 'PLAYING' || this.state === 'VOTING' || this.state === 'REVEAL') {
-      const currentPrompt = this.prompts[this.currentPromptIndex];
-      
-      state.currentPrompt = {
-        index: this.currentPromptIndex,
-        total: this.prompts.length,
-        ...currentPrompt
-      };
-
-      if (forPlayerId) {
-        const isOdd = forPlayerId === this.oddPlayerId;
-        state.clue = isOdd ? currentPrompt.oddClue : currentPrompt.normalClue;
-        state.isOdd = isOdd;
+    if (this.state === 'ROUND_START' || this.state === 'HINT' || this.state === 'VOTE' || this.state === 'PLACE' || this.state === 'REVEAL') {
+      if (this.currentSpectrum) {
+        state.spectrum = {
+          id: this.currentSpectrum.id,
+          left: this.currentSpectrum.left,
+          right: this.currentSpectrum.right
+        };
       }
 
-      if (this.state === 'VOTING' || this.state === 'REVEAL') {
-        // Include all prompts and answers for voting and reveal phases
-        state.allPrompts = this.prompts;
-        state.answers = {};
-        for (const [promptIdx, promptAnswers] of this.answers.entries()) {
-          state.answers[promptIdx] = Object.fromEntries(promptAnswers);
-        }
-      }
-
-      if (this.state === 'REVEAL') {
-        state.oddPlayerId = this.oddPlayerId;
-        state.votes = Object.fromEntries(this.votes);
+      // Show target to Cluers only
+      if (forPlayerId && forPlayerId !== this.navigatorId) {
+        state.target = this.target;
       }
     }
 
+    if (this.state === 'HINT') {
+      const hintsSubmitted = Array.from(this.hints.values()).filter(h => !h.canceled).length;
+      const totalCluers = this.players.size - 1; // excluding Navigator
+      state.hintsSubmitted = hintsSubmitted;
+      state.totalCluers = totalCluers;
+    }
+
+    if (this.state === 'VOTE') {
+      // Show anonymous hints for voting
+      state.hints = this.getActiveHints();
+      state.votesSubmitted = this.votes.size;
+      state.totalVoters = this.players.size - 1; // excluding Navigator
+    }
+
+    if (this.state === 'PLACE') {
+      const finalClueIds = this.calculateFinalClues();
+      state.finalClues = finalClueIds.map(id => {
+        const hint = this.hints.get(id);
+        return { id, text: hint.text };
+      });
+    }
+
+    if (this.state === 'REVEAL') {
+      state.target = this.target;
+      state.placement = this.placement;
+      const scores = this.calculateScores();
+      state.distance = scores.distance;
+      state.pointsPerPlayer = scores.pointsPerPlayer;
+      state.teamResult = scores.teamResult;
+      
+      // Reveal Final Clue authors
+      const finalClueIds = scores.finalClueIds;
+      state.finalClueAuthors = finalClueIds.map(id => {
+        const player = this.players.get(id);
+        return { hintId: id, playerId: id, name: player?.name, avatar: player?.avatar };
+      });
+    }
+
     if (this.state === 'GAME_OVER') {
-      state.winner = this.getWinner();
+      state.leaderboard = this.getLeaderboard();
     }
 
     return state;
@@ -291,7 +494,7 @@ wss.on('connection', (ws) => {
       if (player) {
         player.connected = false;
         broadcastToGame(game.id, {
-          type: 'GAME_STATE',
+          type: 'ROOM_STATE',
           state: game.getGameState()
         });
       }
@@ -345,7 +548,7 @@ function handleMessage(clientId, ws, message) {
       }));
 
       broadcastToGame(joinGame.id, {
-        type: 'GAME_STATE',
+        type: 'ROOM_STATE',
         state: joinGame.getGameState()
       });
       break;
@@ -364,7 +567,7 @@ function handleMessage(clientId, ws, message) {
           }));
 
           broadcastToGame(game.id, {
-            type: 'GAME_STATE',
+            type: 'ROOM_STATE',
             state: game.getGameState()
           });
           return;
@@ -377,171 +580,221 @@ function handleMessage(clientId, ws, message) {
       }));
       break;
 
+    case 'PLAYER_READY':
+      const readyGame = games.get(data.gameId);
+      if (!readyGame) return;
+      
+      const readyPlayer = readyGame.players.get(clientId);
+      if (readyPlayer) {
+        readyPlayer.ready = !readyPlayer.ready;
+        broadcastToGame(readyGame.id, {
+          type: 'ROOM_STATE',
+          state: readyGame.getGameState()
+        });
+      }
+      break;
+
     case 'START_ROUND':
       const startGame = games.get(data.gameId);
       if (!startGame || startGame.hostId !== clientId) return;
       
       if (startGame.startRound()) {
-        startGame.startTimer(60); // 60 seconds per prompt
+        startGame.state = 'ROUND_START';
+        startGame.startTimer(PHASE_SECONDS.SPECTRUM_REVEAL);
+        
         broadcastToGame(startGame.id, {
-          type: 'ROUND_STARTED'
+          type: 'ROUND_START',
+          round: startGame.currentRound,
+          spectrum: {
+            id: startGame.currentSpectrum.id,
+            left: startGame.currentSpectrum.left,
+            right: startGame.currentSpectrum.right
+          },
+          navigatorId: startGame.navigatorId,
+          phase: 'ROUND_START'
         });
         
-        // Send individual clues to players
-        for (const [playerId] of startGame.players) {
-          sendToPlayer(playerId, {
-            type: 'GAME_STATE',
-            state: startGame.getGameState(playerId)
-          });
-        }
-        
-        // Send general game state to host (TV)
-        sendToPlayer(startGame.hostId, {
-          type: 'GAME_STATE',
-          state: startGame.getGameState()
-        });
-      }
-      break;
-
-    case 'SUBMIT_ANSWER':
-      const answerGame = games.get(data.gameId);
-      if (!answerGame) return;
-      
-      answerGame.submitAnswer(clientId, data.answer);
-      
-      // Send confirmation to the player who submitted
-      sendToPlayer(clientId, {
-        type: 'ANSWER_ACCEPTED',
-        promptIndex: answerGame.currentPromptIndex
-      });
-      
-      // Broadcast answer submission status to host (TV)
-      const answersForPrompt = answerGame.answers.get(answerGame.currentPromptIndex);
-      sendToPlayer(answerGame.hostId, {
-        type: 'ANSWER_SUBMITTED',
-        answeredCount: answersForPrompt ? answersForPrompt.size : 0,
-        totalCount: answerGame.players.size
-      });
-      
-      // Check if all players answered
-      const promptAnswers = answerGame.answers.get(answerGame.currentPromptIndex);
-      if (promptAnswers && promptAnswers.size === answerGame.players.size) {
+        // Auto-transition to HINT phase after delay
         setTimeout(() => {
-          if (answerGame.nextPrompt()) {
-            answerGame.startTimer(60);
-            broadcastToGame(answerGame.id, {
-              type: 'NEXT_PROMPT'
-            });
+          if (startGame.state === 'ROUND_START') {
+            startGame.state = 'HINT';
+            const hintTime = PHASE_SECONDS.HINT + startGame.getTimeBonus();
+            startGame.startTimer(hintTime);
             
-            // Send individual clues to players
-            for (const [playerId] of answerGame.players) {
+            // Send individual states to show target to Cluers
+            for (const [playerId] of startGame.players) {
               sendToPlayer(playerId, {
-                type: 'GAME_STATE',
-                state: answerGame.getGameState(playerId)
+                type: 'HINT_PHASE_START',
+                state: startGame.getGameState(playerId)
               });
             }
-            
-            // Send general game state to host (TV)
-            sendToPlayer(answerGame.hostId, {
-              type: 'GAME_STATE',
-              state: answerGame.getGameState()
-            });
-          } else {
-            answerGame.startTimer(30); // 30 seconds for voting
-            broadcastToGame(answerGame.id, {
-              type: 'VOTING_STARTED',
-              state: answerGame.getGameState()
-            });
           }
-        }, 2000);
+        }, PHASE_SECONDS.SPECTRUM_REVEAL * 1000);
       }
       break;
 
-    case 'SUBMIT_VOTE':
+    case 'HINT_SUBMIT':
+      const hintGame = games.get(data.gameId);
+      if (!hintGame) return;
+      
+      const result = hintGame.submitHint(clientId, data.text);
+      
+      sendToPlayer(clientId, {
+        type: result.success ? 'HINT_ACCEPTED' : 'HINT_REJECTED',
+        reason: result.reason
+      });
+      
+      if (result.success) {
+        // Broadcast hint count to host
+        sendToPlayer(hintGame.hostId, {
+          type: 'HINT_STATUS',
+          hintsSubmitted: Array.from(hintGame.hints.values()).filter(h => !h.canceled).length,
+          totalCluers: hintGame.players.size - 1
+        });
+      }
+      break;
+
+    case 'HINT_PHASE_COMPLETE':
+      const completeHintGame = games.get(data.gameId);
+      if (!completeHintGame || completeHintGame.hostId !== clientId) return;
+      if (completeHintGame.state !== 'HINT') return;
+      
+      // Process duplicates
+      const canceledPlayers = completeHintGame.processDuplicates();
+      
+      if (canceledPlayers.length > 0) {
+        // Notify canceled players
+        for (const playerId of canceledPlayers) {
+          sendToPlayer(playerId, {
+            type: 'HINT_CANCELED',
+            reason: 'Duplicate detected - you may resubmit once'
+          });
+        }
+      }
+      
+      // Transition to voting
+      completeHintGame.state = 'VOTE';
+      completeHintGame.startTimer(PHASE_SECONDS.VOTE);
+      
+      broadcastToGame(completeHintGame.id, {
+        type: 'VOTE_START',
+        hints: completeHintGame.getActiveHints(),
+        maxVotes: 2
+      });
+      break;
+
+    case 'VOTE_CAST':
       const voteGame = games.get(data.gameId);
       if (!voteGame) return;
       
-      voteGame.submitVote(clientId, data.votedForId);
+      const voteResult = voteGame.submitVote(clientId, data.hintIds);
       
-      // Send confirmation to the player who voted
       sendToPlayer(clientId, {
-        type: 'VOTE_ACCEPTED'
+        type: voteResult.success ? 'VOTE_ACCEPTED' : 'VOTE_REJECTED',
+        reason: voteResult.reason
       });
       
-      // Broadcast vote submission status to host (TV)
-      sendToPlayer(voteGame.hostId, {
-        type: 'VOTE_SUBMITTED',
-        votedCount: voteGame.votes.size,
-        totalCount: voteGame.players.size
-      });
-      
-      // Check if all players voted
-      if (voteGame.votes.size === voteGame.players.size) {
-        voteGame.calculateScores();
-        
-        setTimeout(() => {
-          broadcastToGame(voteGame.id, {
-            type: 'REVEAL',
-            state: voteGame.getGameState()
-          });
-          
-          // Check win condition
-          setTimeout(() => {
-            if (voteGame.checkWinCondition()) {
-              broadcastToGame(voteGame.id, {
-                type: 'GAME_OVER',
-                state: voteGame.getGameState()
-              });
-            } else {
-              broadcastToGame(voteGame.id, {
-                type: 'ROUND_COMPLETE',
-                state: voteGame.getGameState()
-              });
-            }
-          }, 5000);
-        }, 1000);
+      if (voteResult.success) {
+        // Broadcast vote count to host
+        sendToPlayer(voteGame.hostId, {
+          type: 'VOTE_STATUS',
+          votesSubmitted: voteGame.votes.size,
+          totalVoters: voteGame.players.size - 1
+        });
       }
       break;
 
-    case 'KICK_PLAYER':
-      const kickGame = games.get(data.gameId);
-      if (!kickGame || kickGame.hostId !== clientId) return;
+    case 'VOTE_PHASE_COMPLETE':
+      const completeVoteGame = games.get(data.gameId);
+      if (!completeVoteGame || completeVoteGame.hostId !== clientId) return;
+      if (completeVoteGame.state !== 'VOTE') return;
       
-      kickGame.kickPlayer(data.playerId);
-      broadcastToGame(kickGame.id, {
-        type: 'PLAYER_KICKED',
-        playerId: data.playerId,
-        state: kickGame.getGameState()
+      completeVoteGame.state = 'PLACE';
+      const placeTime = PHASE_SECONDS.PLACE + completeVoteGame.getTimeBonus();
+      completeVoteGame.startTimer(placeTime);
+      
+      const finalClueIds = completeVoteGame.calculateFinalClues();
+      const finalClues = finalClueIds.map(id => {
+        const hint = completeVoteGame.hints.get(id);
+        return { id, text: hint.text };
+      });
+      
+      broadcastToGame(completeVoteGame.id, {
+        type: 'PLACE_START',
+        finalClues,
+        phase: 'PLACE'
       });
       break;
 
-    case 'MUTE_PLAYER':
-      const muteGame = games.get(data.gameId);
-      if (!muteGame || muteGame.hostId !== clientId) return;
+    case 'PLACEMENT_SET':
+      const placeGame = games.get(data.gameId);
+      if (!placeGame) return;
       
-      muteGame.mutePlayer(data.playerId);
-      broadcastToGame(muteGame.id, {
-        type: 'GAME_STATE',
-        state: muteGame.getGameState()
+      const placeResult = placeGame.submitPlacement(clientId, data.value);
+      
+      if (placeResult.success) {
+        sendToPlayer(clientId, {
+          type: 'PLACEMENT_ACCEPTED'
+        });
+      }
+      break;
+
+    case 'PLACEMENT_LOCK':
+      const lockGame = games.get(data.gameId);
+      if (!lockGame) return;
+      if (lockGame.navigatorId !== clientId) return;
+      if (lockGame.placement === null) return;
+      
+      lockGame.state = 'REVEAL';
+      lockGame.startTimer(PHASE_SECONDS.REVEAL);
+      
+      const scores = lockGame.calculateScores();
+      
+      broadcastToGame(lockGame.id, {
+        type: 'REVEAL',
+        target: lockGame.target,
+        placement: lockGame.placement,
+        distance: scores.distance,
+        pointsPerPlayer: scores.pointsPerPlayer,
+        teamResult: scores.teamResult,
+        finalClueAuthors: scores.finalClueIds.map(id => {
+          const player = lockGame.players.get(id);
+          return { hintId: id, playerId: id, name: player?.name, avatar: player?.avatar };
+        })
+      });
+      
+      // Check win condition after delay
+      setTimeout(() => {
+        if (lockGame.checkWinCondition()) {
+          broadcastToGame(lockGame.id, {
+            type: 'GAME_OVER',
+            leaderboard: lockGame.getLeaderboard()
+          });
+        } else {
+          broadcastToGame(lockGame.id, {
+            type: 'ROUND_COMPLETE',
+            state: lockGame.getGameState()
+          });
+        }
+      }, (PHASE_SECONDS.REVEAL + PHASE_SECONDS.BUFFER) * 1000);
+      break;
+
+    case 'TOGGLE_KIDS_MODE':
+      const kidsGame = games.get(data.gameId);
+      if (!kidsGame || kidsGame.hostId !== clientId) return;
+      
+      kidsGame.kidsMode = !kidsGame.kidsMode;
+      broadcastToGame(kidsGame.id, {
+        type: 'ROOM_STATE',
+        state: kidsGame.getGameState()
       });
       break;
 
-    case 'TOGGLE_STREAMER_MODE':
-      const streamerGame = games.get(data.gameId);
-      if (!streamerGame || streamerGame.hostId !== clientId) return;
-      
-      streamerGame.streamerMode = !streamerGame.streamerMode;
-      broadcastToGame(streamerGame.id, {
-        type: 'GAME_STATE',
-        state: streamerGame.getGameState()
-      });
-      break;
-
-    case 'SET_QUESTION_PACK':
+    case 'SET_SPECTRUM_PACK':
       const packGame = games.get(data.gameId);
       if (!packGame || packGame.hostId !== clientId) return;
       
-      packGame.questionPack = data.pack;
+      packGame.spectrumPack = data.pack;
       ws.send(JSON.stringify({
         type: 'PACK_UPDATED',
         pack: data.pack
@@ -552,10 +805,23 @@ function handleMessage(clientId, ws, message) {
       const stateGame = games.get(data.gameId);
       if (!stateGame) return;
       
-      ws.send(JSON.stringify({
-        type: 'GAME_STATE',
+      sendToPlayer(clientId, {
+        type: 'ROOM_STATE',
         state: stateGame.getGameState(clientId)
-      }));
+      });
+      break;
+
+    case 'ADD_TIME':
+      const timeGame = games.get(data.gameId);
+      if (!timeGame || timeGame.hostId !== clientId) return;
+      
+      if (timeGame.timerEndTime) {
+        timeGame.timerEndTime += 10000; // Add 10 seconds
+        broadcastToGame(timeGame.id, {
+          type: 'TIME_ADDED',
+          newEndTime: timeGame.timerEndTime
+        });
+      }
       break;
 
     default:
@@ -567,7 +833,6 @@ function broadcastToGame(gameId, message) {
   const game = games.get(gameId);
   if (!game) return;
 
-  // Send to all players
   for (const playerId of game.players.keys()) {
     sendToPlayer(playerId, message);
   }
@@ -603,7 +868,7 @@ app.get('/api/avatars', (req, res) => {
 });
 
 app.get('/api/packs', (req, res) => {
-  res.json(Object.keys(questionPacks));
+  res.json(Object.keys(spectrumPacks));
 });
 
 app.get('/health', (req, res) => {

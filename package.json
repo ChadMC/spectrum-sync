@@ -1,7 +1,7 @@
 {
-  "name": "odd-ball-out",
+  "name": "spectrum-sync",
   "version": "1.0.0",
-  "description": "Multiplayer party game to locate the odd one out!",
+  "description": "TV-hosted, phone-controlled cooperative spectrum guessing game",
   "scripts": {
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
