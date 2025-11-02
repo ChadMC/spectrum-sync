@@ -509,6 +509,13 @@ wss.on('connection', (ws) => {
             state: game.getGameState(pId)
           });
         }
+        // Also send to host if host is not in the players list
+        if (!game.players.has(game.hostId)) {
+          sendToPlayer(game.hostId, {
+            type: 'ROOM_STATE',
+            state: game.getGameState()
+          });
+        }
       }
     }
   });
@@ -566,6 +573,13 @@ function handleMessage(clientId, ws, message) {
           state: joinGame.getGameState(pId)
         });
       }
+      // Also send to host if host is not in the players list
+      if (!joinGame.players.has(joinGame.hostId)) {
+        sendToPlayer(joinGame.hostId, {
+          type: 'ROOM_STATE',
+          state: joinGame.getGameState()
+        });
+      }
       break;
 
     case 'RECONNECT':
@@ -587,6 +601,13 @@ function handleMessage(clientId, ws, message) {
             sendToPlayer(pId, {
               type: 'ROOM_STATE',
               state: game.getGameState(pId)
+            });
+          }
+          // Also send to host if host is not in the players list
+          if (!game.players.has(game.hostId)) {
+            sendToPlayer(game.hostId, {
+              type: 'ROOM_STATE',
+              state: game.getGameState()
             });
           }
           return;
