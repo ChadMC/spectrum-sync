@@ -35,44 +35,54 @@ export function useWebSocket() {
           case 'CONNECTED':
             setClientId(data.clientId)
             break
-          case 'GAME_STATE':
+          case 'ROOM_STATE':
             setGameState(data.state)
             break
-          case 'VOTING_STARTED':
-          case 'REVEAL':
-          case 'GAME_OVER':
-            // These messages include updated state
-            if (data.state) {
-              setGameState(data.state)
-            }
+          case 'ROUND_START':
+            setGameState(prev => ({ ...prev, ...data, state: 'ROUND_START' }))
             setMessages(prev => [...prev, data])
             break
-          case 'ANSWER_SUBMITTED':
-          case 'VOTE_SUBMITTED':
-            // Update submission status for TV display
+          case 'HINT_PHASE_START':
+            setGameState(data.state)
+            setMessages(prev => [...prev, data])
+            break
+          case 'HINT_STATUS':
+          case 'VOTE_STATUS':
             setSubmissionStatus({
               type: data.type,
-              answered: data.answeredCount || data.votedCount,
-              total: data.totalCount
+              answered: data.hintsSubmitted || data.votesSubmitted,
+              total: data.totalCluers || data.totalVoters
             })
             break
-          case 'ANSWER_ACCEPTED':
+          case 'HINT_ACCEPTED':
+          case 'HINT_REJECTED':
+          case 'HINT_CANCELED':
           case 'VOTE_ACCEPTED':
-            // Player's submission was accepted - add to messages for UI to handle
+          case 'VOTE_REJECTED':
+          case 'PLACEMENT_ACCEPTED':
             setMessages(prev => [...prev, data])
             break
-          case 'NEXT_PROMPT':
-          case 'ROUND_STARTED':
-            // Reset submission status when moving to next prompt or starting round
-            setSubmissionStatus(null)
+          case 'VOTE_START':
+          case 'PLACE_START':
+            setGameState(prev => ({ ...prev, ...data, state: data.type === 'VOTE_START' ? 'VOTE' : 'PLACE' }))
+            setMessages(prev => [...prev, data])
+            break
+          case 'REVEAL':
+            setGameState(prev => ({ ...prev, ...data, state: 'REVEAL' }))
+            setMessages(prev => [...prev, data])
+            break
+          case 'GAME_OVER':
+            setGameState(prev => ({ ...prev, ...data, state: 'GAME_OVER' }))
+            setMessages(prev => [...prev, data])
+            break
+          case 'ROUND_COMPLETE':
             setMessages(prev => [...prev, data])
             break
           case 'GAME_CREATED':
           case 'JOINED_GAME':
           case 'RECONNECTED':
-          case 'ROUND_COMPLETE':
-          case 'PLAYER_KICKED':
           case 'PACK_UPDATED':
+          case 'TIME_ADDED':
           case 'ERROR':
             setMessages(prev => [...prev, data])
             break
@@ -127,12 +137,28 @@ export function useWebSocket() {
     return sendMessage('START_ROUND', { gameId })
   }, [sendMessage])
 
-  const submitAnswer = useCallback((gameId, answer) => {
-    return sendMessage('SUBMIT_ANSWER', { gameId, answer })
+  const submitHint = useCallback((gameId, text) => {
+    return sendMessage('HINT_SUBMIT', { gameId, text })
   }, [sendMessage])
 
-  const submitVote = useCallback((gameId, votedForId) => {
-    return sendMessage('SUBMIT_VOTE', { gameId, votedForId })
+  const submitVote = useCallback((gameId, hintIds) => {
+    return sendMessage('VOTE_CAST', { gameId, hintIds })
+  }, [sendMessage])
+
+  const submitPlacement = useCallback((gameId, value) => {
+    return sendMessage('PLACEMENT_SET', { gameId, value })
+  }, [sendMessage])
+
+  const lockPlacement = useCallback((gameId) => {
+    return sendMessage('PLACEMENT_LOCK', { gameId })
+  }, [sendMessage])
+
+  const completeHintPhase = useCallback((gameId) => {
+    return sendMessage('HINT_PHASE_COMPLETE', { gameId })
+  }, [sendMessage])
+
+  const completeVotePhase = useCallback((gameId) => {
+    return sendMessage('VOTE_PHASE_COMPLETE', { gameId })
   }, [sendMessage])
 
   const kickPlayer = useCallback((gameId, playerId) => {
@@ -147,8 +173,16 @@ export function useWebSocket() {
     return sendMessage('TOGGLE_STREAMER_MODE', { gameId })
   }, [sendMessage])
 
-  const setQuestionPack = useCallback((gameId, pack) => {
-    return sendMessage('SET_QUESTION_PACK', { gameId, pack })
+  const setSpectrumPack = useCallback((gameId, pack) => {
+    return sendMessage('SET_SPECTRUM_PACK', { gameId, pack })
+  }, [sendMessage])
+
+  const toggleKidsMode = useCallback((gameId) => {
+    return sendMessage('TOGGLE_KIDS_MODE', { gameId })
+  }, [sendMessage])
+
+  const addTime = useCallback((gameId) => {
+    return sendMessage('ADD_TIME', { gameId })
   }, [sendMessage])
 
   const getGameState = useCallback((gameId) => {
@@ -173,12 +207,17 @@ export function useWebSocket() {
     createGame,
     joinGame,
     startRound,
-    submitAnswer,
+    submitHint,
     submitVote,
+    submitPlacement,
+    lockPlacement,
+    completeHintPhase,
+    completeVotePhase,
     kickPlayer,
     mutePlayer,
-    toggleStreamerMode,
-    setQuestionPack,
+    setSpectrumPack,
+    toggleKidsMode,
+    addTime,
     getGameState,
     saveReconnectToken,
     clearMessages
