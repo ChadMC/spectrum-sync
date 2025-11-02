@@ -200,7 +200,7 @@ function PhoneController({ gameId: initialGameId }) {
 
     return (
       <div className="phone-lobby">
-        <h1 className="phone-title">🌈 Spectrum Sync</h1>
+        <h1 className="phone-title">🧭 Spectrum Sync</h1>
         <div className="game-code-display">
           <p>Game Code:</p>
           <h2 className="code">{gameId}</h2>
@@ -238,7 +238,7 @@ function PhoneController({ gameId: initialGameId }) {
 
     return (
       <div className="phone-round-start">
-        <h1 className="phase-title">🌈 New Round!</h1>
+        <h1 className="phase-title">🧭 New Round!</h1>
         <h2>Round {ws.gameState.currentRound}/{ws.gameState.maxRounds}</h2>
 
         {spectrum && (
