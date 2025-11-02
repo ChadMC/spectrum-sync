@@ -141,6 +141,10 @@ export function useWebSocket() {
             setMessages(prev => [...prev, data])
             break
           case 'ROUND_COMPLETE':
+            // Update game state to reflect round completion
+            if (data.state) {
+              setGameState(data.state)
+            }
             setMessages(prev => [...prev, data])
             break
           case 'RECONNECTED':

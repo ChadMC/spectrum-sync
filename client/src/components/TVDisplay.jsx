@@ -95,6 +95,8 @@ function TVDisplay({ gameId: initialGameId }) {
     const playerCount = ws.gameState?.players?.length || 0
     const players = ws.gameState?.players || []
     const canStart = playerCount >= 3 && playerCount <= 12
+    const currentRound = ws.gameState?.currentRound || 0
+    const isFirstRound = currentRound === 0
 
     return (
       <div className="tv-lobby">
@@ -103,18 +105,25 @@ function TVDisplay({ gameId: initialGameId }) {
           <div className="game-code">
             Game Code: <span className="code">{gameId}</span>
           </div>
+          {!isFirstRound && (
+            <div className="round-info">
+              <h2>Round {currentRound}/{ws.gameState.maxRounds} Complete!</h2>
+            </div>
+          )}
         </div>
 
         <div className="lobby-content">
-          <div className="qr-section">
-            {qrUrl && (
-              <div className="qr-container">
-                <QRCodeSVG value={qrUrl} size={300} />
-                <p className="join-instruction">Scan to join!</p>
-                <p className="join-url">{qrUrl}</p>
-              </div>
-            )}
-          </div>
+          {isFirstRound && (
+            <div className="qr-section">
+              {qrUrl && (
+                <div className="qr-container">
+                  <QRCodeSVG value={qrUrl} size={300} />
+                  <p className="join-instruction">Scan to join!</p>
+                  <p className="join-url">{qrUrl}</p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="players-section">
             <h2>Players ({playerCount}/12)</h2>
@@ -130,28 +139,33 @@ function TVDisplay({ gameId: initialGameId }) {
             </div>
 
             <div className="lobby-controls">
-              <div className="pack-selector">
-                <label>Spectrum Pack:</label>
-                <select value={selectedPack} onChange={(e) => handlePackChange(e.target.value)}>
-                  {packs.map(pack => (
-                    <option key={pack} value={pack}>{pack}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <button 
-                onClick={handleToggleKidsMode}
-                className="btn btn-secondary"
-              >
-                {ws.gameState?.kidsMode ? '👶 Kids Mode ON' : '👶 Kids Mode OFF'}
-              </button>
+              {isFirstRound && (
+                <>
+                  <div className="pack-selector">
+                    <label>Spectrum Pack:</label>
+                    <select value={selectedPack} onChange={(e) => handlePackChange(e.target.value)}>
+                      {packs.map(pack => (
+                        <option key={pack} value={pack}>{pack}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <button 
+                    onClick={handleToggleKidsMode}
+                    className="btn btn-secondary"
+                  >
+                    {ws.gameState?.kidsMode ? '👶 Kids Mode ON' : '👶 Kids Mode OFF'}
+                  </button>
+                </>
+              )}
 
               <button 
                 onClick={handleStartRound}
                 disabled={!canStart}
                 className="btn btn-primary btn-large"
               >
-                {canStart ? '▶️ Start Round' : `Need ${3 - playerCount} more players`}
+                {!canStart ? `Need ${3 - playerCount} more players` : 
+                 isFirstRound ? '▶️ Start Game' : '▶️ Next Round'}
               </button>
             </div>
           </div>
