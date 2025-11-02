@@ -34,9 +34,12 @@ export function useWebSocket() {
     if (gameId) {
       const key = `reconnectToken_${gameId}`
       localStorage.removeItem(key)
+      // Only clear refs if this is the currently loaded game
+      if (reconnectGameId.current === gameId) {
+        reconnectToken.current = null
+        reconnectGameId.current = null
+      }
     }
-    reconnectToken.current = null
-    reconnectGameId.current = null
   }, [])
 
   // Helper to clear all reconnect tokens

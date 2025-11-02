@@ -36,7 +36,8 @@ function PhoneController({ gameId: initialGameId }) {
     if (gameId && ws.connected) {
       ws.loadReconnectToken(gameId)
     }
-  }, [gameId, ws.connected, ws])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, ws.connected])
 
   useEffect(() => {
     // Fetch available avatars

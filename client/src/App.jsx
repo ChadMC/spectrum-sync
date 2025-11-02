@@ -4,6 +4,9 @@ import TVDisplay from './components/TVDisplay'
 import PhoneController from './components/PhoneController'
 import Home from './components/Home'
 
+// Custom event for URL changes
+const URL_CHANGE_EVENT = 'urlchange'
+
 function App() {
   const [view, setView] = useState('home')
   const [gameId, setGameId] = useState(null)
@@ -42,11 +45,11 @@ function App() {
     const handleUrlChange = () => {
       updateFromUrl()
     }
-    window.addEventListener('urlchange', handleUrlChange)
+    window.addEventListener(URL_CHANGE_EVENT, handleUrlChange)
 
     return () => {
       window.removeEventListener('popstate', handlePopState)
-      window.removeEventListener('urlchange', handleUrlChange)
+      window.removeEventListener(URL_CHANGE_EVENT, handleUrlChange)
     }
   }, [updateFromUrl])
 
@@ -57,7 +60,7 @@ function App() {
     if (id && id !== 'null') {
       window.history.pushState({}, '', `/tv/${id}`)
       // Dispatch custom event for URL change detection
-      window.dispatchEvent(new Event('urlchange'))
+      window.dispatchEvent(new Event(URL_CHANGE_EVENT))
     }
   }
 
@@ -66,7 +69,7 @@ function App() {
     setView('phone')
     window.history.pushState({}, '', `/join/${id}`)
     // Dispatch custom event for URL change detection
-    window.dispatchEvent(new Event('urlchange'))
+    window.dispatchEvent(new Event(URL_CHANGE_EVENT))
   }
 
   return (

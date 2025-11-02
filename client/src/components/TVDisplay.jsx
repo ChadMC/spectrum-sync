@@ -3,6 +3,9 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useWebSocket } from '../hooks/useWebSocket'
 import './TVDisplay.css'
 
+// Custom event name for URL changes (must match App.jsx)
+const URL_CHANGE_EVENT = 'urlchange'
+
 function TVDisplay({ gameId: initialGameId }) {
   const [gameId, setGameId] = useState(initialGameId)
   const [qrUrl, setQrUrl] = useState('')
@@ -34,7 +37,7 @@ function TVDisplay({ gameId: initialGameId }) {
       // Update the URL in the browser to reflect the actual game ID
       window.history.pushState({}, '', `/tv/${lastMessage.gameId}`)
       // Dispatch custom event for URL change detection
-      window.dispatchEvent(new Event('urlchange'))
+      window.dispatchEvent(new Event(URL_CHANGE_EVENT))
     }
   }, [ws.messages])
 
