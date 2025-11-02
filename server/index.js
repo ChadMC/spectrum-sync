@@ -572,7 +572,8 @@ function handleMessage(clientId, ws, message) {
           
           ws.send(JSON.stringify({
             type: 'RECONNECTED',
-            gameId: game.id
+            gameId: game.id,
+            playerId: playerId
           }));
 
           broadcastToGame(game.id, {

@@ -146,6 +146,10 @@ export function useWebSocket() {
               clearTimeout(connectionTimeout.current)
               connectionTimeout.current = null
             }
+            // Update clientId to match the server's playerId
+            if (data.playerId) {
+              setClientId(data.playerId)
+            }
             setMessages(prev => [...prev, data])
             break
           case 'ERROR':
