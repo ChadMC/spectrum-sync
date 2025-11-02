@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
 const RECONNECT_TIMEOUT_MS = 5000
 const RECONNECT_DELAY_MS = 3000
+const MAX_RECONNECT_DELAY_MS = 30000
 const MAX_RECONNECT_ATTEMPTS = 10
 
 export function useWebSocket() {
@@ -18,6 +19,7 @@ export function useWebSocket() {
   const reconnectAttempts = useRef(0)
   const reconnectTimer = useRef(null)
   const visibilityChangeHandler = useRef(null)
+  const isConnected = useRef(false)
 
   const clearReconnectToken = useCallback(() => {
     reconnectToken.current = null
@@ -38,6 +40,7 @@ export function useWebSocket() {
     ws.current.onopen = () => {
       console.log('WebSocket connected')
       setConnected(true)
+      isConnected.current = true
       reconnectAttempts.current = 0 // Reset reconnect attempts on successful connection
       
       // Try to reconnect if we have a token and haven't attempted yet
@@ -147,13 +150,14 @@ export function useWebSocket() {
     ws.current.onclose = () => {
       console.log('WebSocket disconnected')
       setConnected(false)
+      isConnected.current = false
       
       // Reset reconnect attempt flag so it can be tried again on reconnection
       reconnectAttempted.current = false
       
       // Implement exponential backoff for reconnection
       if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
-        const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, reconnectAttempts.current), 30000)
+        const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, reconnectAttempts.current), MAX_RECONNECT_DELAY_MS)
         console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1}/${MAX_RECONNECT_ATTEMPTS})`)
         
         reconnectTimer.current = setTimeout(() => {
@@ -179,7 +183,7 @@ export function useWebSocket() {
       if (document.visibilityState === 'visible') {
         console.log('Page became visible - checking connection')
         // If we're not connected and have a reconnect token, try to reconnect
-        if (!connected && reconnectToken.current && ws.current?.readyState !== WebSocket.OPEN) {
+        if (!isConnected.current && reconnectToken.current && ws.current?.readyState !== WebSocket.OPEN) {
           console.log('Attempting to reconnect after returning to app')
           reconnectAttempted.current = false
           reconnectAttempts.current = 0
