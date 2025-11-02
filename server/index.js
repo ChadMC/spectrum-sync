@@ -428,7 +428,7 @@ class Game {
         };
       }
 
-      // Show target to Cluers only
+      // Show target to Cluers only (not to Navigator, not to TV/host)
       if (forPlayerId && forPlayerId !== this.navigatorId) {
         state.target = this.target;
       }

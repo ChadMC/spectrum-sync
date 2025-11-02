@@ -1318,3 +1318,115 @@
 .my-final-score .score-large {
   margin: 0;
 }
+
+/* Prominent Target Display for Cluers */
+.target-display-prominent {
+  text-align: center;
+  padding: 30px 20px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);
+  border-radius: 20px;
+  margin-top: 20px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  animation: gentle-pulse 2s ease-in-out infinite;
+  border: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+@keyframes gentle-pulse {
+  0%, 100% { 
+    transform: scale(1); 
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3); 
+  }
+  50% { 
+    transform: scale(1.03); 
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4); 
+  }
+}
+
+/* Disable animation for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .target-display-prominent {
+    animation: none;
+  }
+}
+
+.target-label-phone {
+  font-size: 1.3em;
+  font-weight: 800;
+  letter-spacing: 4px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  opacity: 0.95;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.target-number-phone {
+  font-size: 6em;
+  font-weight: 900;
+  line-height: 1;
+  margin: 15px 0;
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.02em;
+}
+
+.target-instruction {
+  font-size: 1.1em;
+  opacity: 0.95;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 15px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Target Reminder for Vote Phase on Phone */
+.target-reminder-phone {
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.9) 0%, rgba(255, 142, 83, 0.9) 100%);
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.target-reminder-labels {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-bottom: 15px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.target-reminder-labels .left,
+.target-reminder-labels .right {
+  opacity: 0.95;
+}
+
+.target-reminder-labels .divider {
+  font-size: 1.3em;
+  opacity: 0.7;
+}
+
+.target-reminder-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 15px 20px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.target-reminder-value .label {
+  font-size: 1.3em;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.target-reminder-value .number {
+  font-size: 2.5em;
+  font-weight: 900;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
