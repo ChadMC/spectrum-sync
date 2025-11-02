@@ -27,7 +27,10 @@ function App() {
   const handleCreateGame = (id) => {
     setGameId(id)
     setView('tv')
-    window.history.pushState({}, '', `/tv/${id}`)
+    // Only update URL if we have a valid game ID
+    if (id && id !== 'null') {
+      window.history.pushState({}, '', `/tv/${id}`)
+    }
   }
 
   const handleJoinGame = (id) => {

@@ -23,6 +23,8 @@ function TVDisplay({ gameId: initialGameId }) {
       setGameId(lastMessage.gameId)
       const url = `${window.location.origin}/join/${lastMessage.gameId}`
       setQrUrl(url)
+      // Update the URL in the browser to reflect the actual game ID
+      window.history.pushState({}, '', `/tv/${lastMessage.gameId}`)
     }
   }, [ws.messages])
 
