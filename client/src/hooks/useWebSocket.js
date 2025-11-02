@@ -13,7 +13,8 @@ export function useWebSocket() {
   const [messages, setMessages] = useState([])
   const [submissionStatus, setSubmissionStatus] = useState(null)
   const ws = useRef(null)
-  const reconnectToken = useRef(localStorage.getItem('reconnectToken'))
+  const reconnectToken = useRef(null)
+  const reconnectGameId = useRef(null)
   const reconnectAttempted = useRef(false)
   const connectionTimeout = useRef(null)
   const reconnectAttempts = useRef(0)
@@ -21,9 +22,34 @@ export function useWebSocket() {
   const visibilityChangeHandler = useRef(null)
   const isConnected = useRef(false)
 
-  const clearReconnectToken = useCallback(() => {
+  // Helper to get reconnect token for a specific game
+  const getReconnectToken = useCallback((gameId) => {
+    if (!gameId) return null
+    const key = `reconnectToken_${gameId}`
+    return localStorage.getItem(key)
+  }, [])
+
+  // Helper to clear reconnect token for a specific game
+  const clearReconnectToken = useCallback((gameId) => {
+    if (gameId) {
+      const key = `reconnectToken_${gameId}`
+      localStorage.removeItem(key)
+    }
     reconnectToken.current = null
-    localStorage.removeItem('reconnectToken')
+    reconnectGameId.current = null
+  }, [])
+
+  // Helper to clear all reconnect tokens
+  const clearAllReconnectTokens = useCallback(() => {
+    // Clear all keys that start with 'reconnectToken_'
+    const keys = Object.keys(localStorage)
+    keys.forEach(key => {
+      if (key.startsWith('reconnectToken_')) {
+        localStorage.removeItem(key)
+      }
+    })
+    reconnectToken.current = null
+    reconnectGameId.current = null
   }, [])
 
   const connect = useCallback(() => {
@@ -44,7 +70,7 @@ export function useWebSocket() {
       reconnectAttempts.current = 0 // Reset reconnect attempts on successful connection
       
       // Try to reconnect if we have a token and haven't attempted yet
-      if (reconnectToken.current && !reconnectAttempted.current) {
+      if (reconnectToken.current && reconnectGameId.current && !reconnectAttempted.current) {
         reconnectAttempted.current = true
         
         // Send reconnect message
@@ -57,7 +83,7 @@ export function useWebSocket() {
         // Set a timeout for reconnect attempt - if no response, clear token
         connectionTimeout.current = setTimeout(() => {
           console.log('Reconnect timeout - clearing stale token')
-          clearReconnectToken()
+          clearReconnectToken(reconnectGameId.current)
         }, RECONNECT_TIMEOUT_MS)
       }
     }
@@ -126,7 +152,9 @@ export function useWebSocket() {
             // If error is about invalid reconnect token, clear it
             if (data.message && data.message.includes('reconnect')) {
               console.log('Invalid reconnect token - clearing')
-              clearReconnectToken()
+              if (reconnectGameId.current) {
+                clearReconnectToken(reconnectGameId.current)
+              }
               // Clear connection timeout
               if (connectionTimeout.current) {
                 clearTimeout(connectionTimeout.current)
@@ -183,7 +211,7 @@ export function useWebSocket() {
       if (document.visibilityState === 'visible') {
         console.log('Page became visible - checking connection')
         // If we're not connected and have a reconnect token, try to reconnect
-        if (!isConnected.current && reconnectToken.current) {
+        if (!isConnected.current && reconnectToken.current && reconnectGameId.current) {
           console.log('Attempting to reconnect after returning to app')
           reconnectAttempted.current = false
           reconnectAttempts.current = 0
@@ -282,10 +310,25 @@ export function useWebSocket() {
     return sendMessage('GET_GAME_STATE', { gameId })
   }, [sendMessage])
 
-  const saveReconnectToken = useCallback((token) => {
+  const saveReconnectToken = useCallback((token, gameId) => {
+    if (!gameId) {
+      console.warn('Cannot save reconnect token without gameId')
+      return
+    }
     reconnectToken.current = token
-    localStorage.setItem('reconnectToken', token)
+    reconnectGameId.current = gameId
+    const key = `reconnectToken_${gameId}`
+    localStorage.setItem(key, token)
   }, [])
+
+  const loadReconnectToken = useCallback((gameId) => {
+    if (!gameId) return
+    const token = getReconnectToken(gameId)
+    if (token) {
+      reconnectToken.current = token
+      reconnectGameId.current = gameId
+    }
+  }, [getReconnectToken])
 
   const clearMessages = useCallback(() => {
     setMessages([])
@@ -313,7 +356,9 @@ export function useWebSocket() {
     addTime,
     getGameState,
     saveReconnectToken,
+    loadReconnectToken,
     clearReconnectToken,
+    clearAllReconnectTokens,
     clearMessages
   }
 }

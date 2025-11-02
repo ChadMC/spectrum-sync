@@ -15,6 +15,29 @@ function PhoneController({ gameId: initialGameId }) {
   const [placementValue, setPlacementValue] = useState(50)
   const ws = useWebSocket()
 
+  // Effect to handle game ID changes
+  useEffect(() => {
+    if (initialGameId && initialGameId !== gameId) {
+      // Game ID changed (e.g., user navigated to a different game URL)
+      console.log('Game ID changed from', gameId, 'to', initialGameId)
+      setGameId(initialGameId)
+      setJoined(false)
+      // Clear old state
+      setHasSubmittedHint(false)
+      setHasSubmittedVote(false)
+      setSelectedVotes([])
+      setHintText('')
+      setPlacementValue(50)
+    }
+  }, [initialGameId, gameId])
+
+  // Effect to try reconnecting with saved token when component mounts or gameId changes
+  useEffect(() => {
+    if (gameId && ws.connected) {
+      ws.loadReconnectToken(gameId)
+    }
+  }, [gameId, ws.connected, ws])
+
   useEffect(() => {
     // Fetch available avatars
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
@@ -32,7 +55,7 @@ function PhoneController({ gameId: initialGameId }) {
     
     if (lastMessage?.type === 'JOINED_GAME') {
       setJoined(true)
-      ws.saveReconnectToken(lastMessage.reconnectToken)
+      ws.saveReconnectToken(lastMessage.reconnectToken, lastMessage.gameId)
       ws.clearMessages()
     } else if (lastMessage?.type === 'RECONNECTED') {
       setJoined(true)

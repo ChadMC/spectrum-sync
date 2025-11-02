@@ -10,6 +10,14 @@ function TVDisplay({ gameId: initialGameId }) {
   const [packs, setPacks] = useState(['default'])
   const ws = useWebSocket()
 
+  // Effect to handle game ID changes from props
+  useEffect(() => {
+    if (initialGameId && initialGameId !== gameId) {
+      console.log('TV Game ID changed from', gameId, 'to', initialGameId)
+      setGameId(initialGameId)
+    }
+  }, [initialGameId, gameId])
+
   useEffect(() => {
     if (ws.connected && !gameId) {
       ws.createGame()
@@ -25,6 +33,8 @@ function TVDisplay({ gameId: initialGameId }) {
       setQrUrl(url)
       // Update the URL in the browser to reflect the actual game ID
       window.history.pushState({}, '', `/tv/${lastMessage.gameId}`)
+      // Dispatch custom event for URL change detection
+      window.dispatchEvent(new Event('urlchange'))
     }
   }, [ws.messages])
 
